@@ -56,7 +56,7 @@ from shared.base import client_id_dir
 from shared.conf import get_configuration_object
 from shared.defaults import session_id_bytes
 from shared.fileio import make_symlink, pickle, unpickle, write_file
-from shared.functional import validate_input_and_cert
+from shared.functional import validate_input_and_cert, REJECT_UNSET
 from shared.httpsclient import unescape
 from shared.init import initialize_main_variables
 from shared.pwhash import generate_random_ascii
@@ -149,15 +149,15 @@ def get_newest_mount(jupyter_mounts):
     return latest, old_mounts
 
 
-def get_jupyter_host(configuration, logger):
+# TODO switch to service
+def get_host_from_service(configuration, service):
     """
     Returns a URL to an active jupyterhub host
     if no active host is found, None is returned
     :param configuration: The MiG Configuration object
-    :param logger: an external logger object, expects an available .error() member
-    function
     :return: url string or None
     """
+    _logger = configuration.logger
     hosts = configuration.jupyter_hosts.split(" ")
     while hosts:
         rng = random.randrange(0, len(hosts) - 1)
@@ -166,8 +166,8 @@ def get_jupyter_host(configuration, logger):
                 session.get(hosts[rng])
                 return hosts[rng]
         except requests.ConnectionError as err:
-            logger.error("Failed to establish connection to %s error %s",
-                         hosts[rng], err)
+            _logger.error("Failed to establish connection to %s error %s",
+                          hosts[rng], err)
             hosts.pop(rng)
     return None
 
@@ -212,7 +212,10 @@ def reset():
 
 def signature():
     """Signature of the main function"""
-    return ['', {}]
+    defaults = {
+        'service': REJECT_UNSET
+    }
+    return ['', defaults]
 
 
 def main(client_id, user_arguments_dict):
@@ -247,8 +250,20 @@ def main(client_id, user_arguments_dict):
              'The required sftp service is not enabled on the system'})
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
+    jupyter_service = accepted['service'][-1]
+    services = [service['name']
+                for service in configuration.jupyter_services]
+
+    if jupyter_service not in services:
+        output_objects.append(
+            {'object_type': 'error_text',
+             'text': '%s is not a valid jupyter service, '
+             'allowed include %s' % (jupyter_service, services)})
+        return (output_objects, returnvalues.SYSTEM_ERROR)
+
+    host = get_host_from_service(configuration, jupyter_service)
     # Get an active jupyterhost
-    host = get_jupyter_host(configuration, logger)
+    #host = get_jupyter_host(configuration)
     if host is None:
         logger.error("No active jupyterhub host could be found")
         output_objects.append(

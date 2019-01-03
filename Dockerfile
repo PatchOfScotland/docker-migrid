@@ -105,10 +105,6 @@ RUN mkdir -p MiG-certificates \
     && ln -s $CERT_DIR/combined.pub combined.pub \
     && ln -s $CERT_DIR/dhparams.pem dhparams.pem
 
-# Install and configure MiG
-ARG MIG_CHECKOUT=4032
-RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
-
 # Prepare OpenID
 RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
     && python get-pip.py --user
@@ -134,6 +130,17 @@ RUN pip install --user \
 RUN pip install --user \
     pyftpdlib
 
+# Install and configure MiG
+ARG MIG_CHECKOUT=4032
+RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
+
+ADD mig /home/mig/mig
+
+USER root
+RUN chown -R mig:mig /home/mig/mig
+
+USER $USER
+
 WORKDIR $MIG_ROOT/mig/install
 
 RUN ./generateconfs.py \
@@ -150,6 +157,7 @@ RUN ./generateconfs.py \
     --enable_events=True \
     --enable_crontab=True \
     --enable_imnotify=True \
+    --enable_jupyter=True \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
@@ -188,7 +196,6 @@ RUN cp generated-confs/MiGserver.conf $MIG_ROOT/mig/server/ \
     && cp generated-confs/static-skin.css $MIG_ROOT/mig/images/ \
     && cp generated-confs/index.html $MIG_ROOT/state/user_home/
 
-
 # Prepare oiddiscover for httpd
 RUN cd $MIG_ROOT/mig \
     && python shared/httpsclient.py | grep -A 80 "xml version" \
@@ -209,9 +216,14 @@ RUN cp generated-confs/MiG.conf $WEB_DIR/conf.d/ \
 # Root confs
 RUN cp generated-confs/apache2.conf $WEB_DIR/ \
     && cp generated-confs/ports.conf $WEB_DIR/ \
-    && cp generated-confs/MiG-jupyter.conf $WEB_DIR/ \
-    && cp generated-confs/MiG-jupyter-def.conf $WEB_DIR/ \
     && cp generated-confs/envvars $WEB_DIR/
+
+# Jupyter apache confs
+RUN mkdir -p $WEB_DIR/conf.extras.d \
+    && cp generated-confs/MiG-jupyter-def.conf $WEB_DIR/conf.extras.d \
+    && cp generated-confs/MiG-jupyter-openid.conf $WEB_DIR/conf.extras.d \
+    && cp generated-confs/MiG-jupyter-proxy.conf $WEB_DIR/conf.extras.d/ \
+    && cp generated-confs/MiG-jupyter-rewrite.conf $WEB_DIR/conf.extras.d/
 
 # Disable certificate check for OID
 RUN sed -i '/\/server.ca.pem/ a SSLProxyCheckPeerName off' $WEB_DIR/conf.d/MiG.conf \

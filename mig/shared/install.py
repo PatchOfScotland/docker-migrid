@@ -196,8 +196,6 @@ def generate_confs(
     ext_oid_fqdn='localhost',
     sid_fqdn='localhost',
     io_fqdn='localhost',
-    jupyter_hosts='',
-    jupyter_base_url='',
     user='mig',
     group='mig',
     apache_version='2.4',
@@ -239,6 +237,7 @@ def generate_confs(
     mig_oid_provider='',
     ext_oid_provider='',
     dhparams_path='',
+    jupyter_services=[],
     daemon_keycert='',
     daemon_pubkey='',
     daemon_show_address='',
@@ -281,8 +280,6 @@ def generate_confs(
     user_dict['__EXT_OID_FQDN__'] = ext_oid_fqdn
     user_dict['__SID_FQDN__'] = sid_fqdn
     user_dict['__IO_FQDN__'] = io_fqdn
-    user_dict['__JUPYTER_BASE_URL__'] = jupyter_base_url
-    user_dict['__JUPYTER_HOSTS__'] = jupyter_hosts
     user_dict['__USER__'] = user
     user_dict['__GROUP__'] = group
     user_dict['__PUBLIC_PORT__'] = str(public_port)
@@ -490,10 +487,6 @@ cert, oid and sid based https!
         user_dict['__IFDEF_IO_FQDN__'] = 'Define'
     # No port for __IO_FQDN__
 
-    user_dict['__IFDEF_JUPYTER_BASE_URL__'] = 'UnDefine'
-    if user_dict['__JUPYTER_BASE_URL__'] != '':
-        user_dict['__IFDEF_JUPYTER_BASE_URL__'] = 'Define'
-
     # Enable mercurial module in trackers if Trac is available
     user_dict['__HG_COMMENTED__'] = '#'
     if user_dict['__HG_PATH__']:
@@ -535,33 +528,39 @@ cert, oid and sid based https!
         user_dict['__JUPYTER_COMMENTED__'] = ''
         # Jupyter requires websockets proxy
         user_dict['__WEBSOCKETS_COMMENTED__'] = ''
+        #user_dict['__JUPYTER_SERVICES__'] = '%s' % jupyter_services
 
-        if jupyter_hosts:
-            user_dict['__JUPYTER_HOSTS__'] = jupyter_hosts
+#        user_dict['__IFDEF_JUPYTER_BASE_URL__'] = 'UnDefine'
+#        if user_dict['__JUPYTER_BASE_URL__'] != '':
+#            user_dict['__IFDEF_JUPYTER_BASE_URL__'] = 'Define'
 
-            jupyter_tmp_inserts = {
-                'BalancerMemberPlaceholder': [],
-                'WSBalancerMemberPlaceholder': []
-            }
+        jupyter_def_inserts = {'JupyterDefinitionsPlaceholder': []}
+        jupyter_openid_inserts = {'JupyterOpenIDPlaceholder': []}
+        jupyter_rewrite_inserts = {'JupyterRewritePlaceholder': []}
 
-            jupyter_def_inserts = {
-                'JupyterHostsPlaceholder': []
-            }
+        jupyter_proxy_inserts = {
+            'BalancerMemberPlaceholder': [],
+            'WSBalancerMemberPlaceholder': []
+        }
 
-            hosts = jupyter_hosts.split(' ')
-            # Insert hosts into jupyter-template
+        for service in jupyter_services:
+            user_dict['__JUPYTER_HOSTS__'] = service['hosts']
+            # TODO, add jupyter service base url as a definition 
+            # to jupyter defs
+
+            hosts = service['hosts'].split(' ')
+            # Insert hosts into jupyter-proxy-template
             for i_h, host in enumerate(hosts):
                 member = "BalancerMember %s route=%s retry=600 timeout=40\n" % (
                     "${JUPYTER_HOST_%s}" % i_h, i_h)
                 ws_member = member.replace("${JUPYTER_HOST_%s}" % i_h,
                                            "${WS_JUPYTER_HOST_%s}" % i_h)
-
                 member_def = "__JUPYTER_COMMENTED__        " + member
                 ws_member_def = "__JUPYTER_COMMENTED__        " + ws_member
 
-                jupyter_tmp_inserts['BalancerMemberPlaceholder'].append(
+                jupyter_proxy_inserts['BalancerMemberPlaceholder'].append(
                     member_def)
-                jupyter_tmp_inserts['WSBalancerMemberPlaceholder'].append(
+                jupyter_proxy_inserts['WSBalancerMemberPlaceholder'].append(
                     ws_member_def)
 
                 member_helper = "__IFDEF_JUPYTER_HOST_%s__ " \
@@ -592,18 +591,21 @@ cert, oid and sid based https!
                         user_dict['__JUPYTER_HOST_%s__' % i_h] += ":80"
                         user_dict['__WS_JUPYTER_HOST_%s__' % i_h] += ":80"
 
-            insert_list.extend([
-                ("apache-MiG-jupyter-template.conf", jupyter_tmp_inserts),
-                ("apache-MiG-jupyter-def-template.conf", jupyter_def_inserts)
-            ])
+        insert_list.extend([
+            ("apache-MiG-jupyter-def-template.conf", jupyter_def_inserts),
+            ("apache-MiG-jupyter-openid-template.conf", jupyter_openid_inserts),
+            ("apache-MiG-jupyter-proxy-template.conf", jupyter_proxy_inserts),
+            ("apache-MiG-jupyter-rewrite-template.conf", jupyter_rewrite_inserts)
+        ])
 
-            cleanup_list.extend([
-                ("apache-MiG-jupyter-template.conf", "BalancerMember ${"),
-                ("apache-MiG-jupyter-def-template.conf", "__IFDEF")
-            ])
+        cleanup_list.extend([
+            ("apache-MiG-jupyter-def-template.conf", "__IFDEF"),
+            ("apache-MiG-jupyter-template.conf", "BalancerMember ${")
+        ])
 
     else:
         user_dict['__JUPYTER_COMMENTED__'] = '#'
+        user_dict['__JUPYTER_SERVICES__'] = []
 
     # Enable Duplicati integration only if explicitly requested
     if user_dict['__ENABLE_DUPLICATI__'].lower() == 'true':
@@ -868,8 +870,10 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
         ("apache-mimic-deb-template.conf", "mimic-deb.conf"),
         ("apache-init.d-deb-template", "apache-%s" % user),
         ("apache-service-template.conf", "apache2.service"),
-        ("apache-MiG-jupyter-template.conf", "MiG-jupyter.conf"),
         ("apache-MiG-jupyter-def-template.conf", "MiG-jupyter-def.conf"),
+        ("apache-MiG-jupyter-openid-template.conf", "MiG-jupyter-openid.conf"),
+        ("apache-MiG-jupyter-proxy-template.conf", "MiG-jupyter-proxy.conf"),
+        ("apache-MiG-jupyter-rewrite-template.conf", "MiG-jupyter-rewrite.conf"),
         ("trac-MiG-template.ini", "trac.ini"),
         ("logrotate-MiG-template", "logrotate-migrid"),
         ("MiGserver-template.conf", "MiGserver.conf"),
@@ -932,9 +936,14 @@ httpd.conf, ports.conf and envvars to %(apache_etc)s/:
 sudo cp %(destination)s/apache2.conf %(apache_etc)s/
 sudo cp %(destination)s/httpd.conf %(apache_etc)s/
 sudo cp %(destination)s/ports.conf %(apache_etc)s/
-sudo cp %(destination)s/MiG-jupyter.conf %(apache_etc)s/
-sudo cp %(destination)s/MiG-jupyter-def.conf %(apache_etc)s/
 sudo cp %(destination)s/envvars %(apache_etc)s/
+
+If jupyter is enabled, the following generated configuration files should be 
+copied as follows,
+sudo cp %(destination)s/MiG-jupyter-def.conf %(apache_etc)s/conf.extras.d
+sudo cp %(destination)s/MiG-jupyter-openid.conf %(apache_etc)s/conf.extras.d
+sudo cp %(destination)s/MiG-jupyter-proxy.conf %(apache_etc)s/conf.extras.d
+sudo cp %(destination)s/MiG-jupyter-rewrite.conf %(apache_etc)s/conf.extras.d
 
 and if Trac is enabled, the generated trac.ini to %(mig_code)s/server/:
 cp %(destination)s/trac.ini %(mig_code)s/server/
