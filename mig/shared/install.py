@@ -196,6 +196,7 @@ def generate_confs(
     ext_oid_fqdn='localhost',
     sid_fqdn='localhost',
     io_fqdn='localhost',
+    jupyter_services='',
     user='mig',
     group='mig',
     apache_version='2.4',
@@ -237,7 +238,6 @@ def generate_confs(
     mig_oid_provider='',
     ext_oid_provider='',
     dhparams_path='',
-    jupyter_services=[],
     daemon_keycert='',
     daemon_pubkey='',
     daemon_show_address='',
@@ -280,6 +280,7 @@ def generate_confs(
     user_dict['__EXT_OID_FQDN__'] = ext_oid_fqdn
     user_dict['__SID_FQDN__'] = sid_fqdn
     user_dict['__IO_FQDN__'] = io_fqdn
+    user_dict['__JUPYTER_SERVICES__'] = jupyter_services
     user_dict['__USER__'] = user
     user_dict['__GROUP__'] = group
     user_dict['__PUBLIC_PORT__'] = str(public_port)
@@ -528,24 +529,20 @@ cert, oid and sid based https!
         user_dict['__JUPYTER_COMMENTED__'] = ''
         # Jupyter requires websockets proxy
         user_dict['__WEBSOCKETS_COMMENTED__'] = ''
-        #user_dict['__JUPYTER_SERVICES__'] = '%s' % jupyter_services
 
-#        user_dict['__IFDEF_JUPYTER_BASE_URL__'] = 'UnDefine'
-#        if user_dict['__JUPYTER_BASE_URL__'] != '':
-#            user_dict['__IFDEF_JUPYTER_BASE_URL__'] = 'Define'
-
+        # Dynamic apache configuration insert_template lists
         jupyter_def_inserts = {'JupyterDefinitionsPlaceholder': []}
         jupyter_openid_inserts = {'JupyterOpenIDPlaceholder': []}
         jupyter_rewrite_inserts = {'JupyterRewritePlaceholder': []}
-
         jupyter_proxy_inserts = {
             'BalancerMemberPlaceholder': [],
             'WSBalancerMemberPlaceholder': []
         }
+        services = user_dict['__JUPYTER_SERVICES__'].split()
 
-        for service in jupyter_services:
+        for service in services:
             user_dict['__JUPYTER_HOSTS__'] = service['hosts']
-            # TODO, add jupyter service base url as a definition 
+            # TODO, add jupyter service base url as a definition
             # to jupyter defs
 
             hosts = service['hosts'].split(' ')
@@ -600,7 +597,7 @@ cert, oid and sid based https!
 
         cleanup_list.extend([
             ("apache-MiG-jupyter-def-template.conf", "__IFDEF"),
-            ("apache-MiG-jupyter-template.conf", "BalancerMember ${")
+            ("apache-MiG-jupyter-proxy-template.conf", "BalancerMember ${")
         ])
 
     else:

@@ -158,6 +158,7 @@ RUN ./generateconfs.py \
     --enable_crontab=True \
     --enable_imnotify=True \
     --enable_jupyter=True \
+    --jupyter_services="dag modi" \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
