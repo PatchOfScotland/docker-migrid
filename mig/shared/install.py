@@ -541,6 +541,15 @@ cert, oid and sid based https!
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
         for service in services:
+            name_hosts = service.split(".", 1)
+            name, host = name_hosts[0], name_hosts[1]
+
+            if not user_dict['__IFDEF_%s_URL__' % name]:
+                user_dict['__IFDEF_%s_URL__' % name] = 'Define'
+
+            if not user_dict['__%s_URL__' % name]:
+                user_dict['__%s_URL__' % name] = '/' + name
+
             user_dict['__JUPYTER_HOSTS__'] = service['hosts']
             # TODO, add jupyter service base url as a definition
             # to jupyter defs
