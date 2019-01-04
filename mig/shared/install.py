@@ -126,6 +126,12 @@ def template_insert(template_file, insert_identifiers, unique=False):
                     continue
                 f_index += 1
                 contents.insert(f_index, v)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                if unique and [line for line in contents if v in line]:
+                    continue
+                f_index += 1
+                contents.insert(f_index, v)
         else:
             print("A non-valid insert identifer dictionary value was supplied, "
                   "supports str and list")
@@ -538,29 +544,71 @@ cert, oid and sid based https!
             'BalancerMemberPlaceholder': [],
             'WSBalancerMemberPlaceholder': []
         }
+        jupyter_config_inserts = {'JupyterSectionsPlaceholder': []}
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
+        service_hosts = {}
         for service in services:
+            # TODO, do more checks on format
             name_hosts = service.split(".", 1)
+            if not len(name_hosts) == 2:
+                print 'Error: You have not correctly formattet '
+                'the jupyter_services parameter, '
+                'expects --jupyter_services="service_name.'
+                'http(s)://jupyterhost-url-or-ip '
+                'other_service.http(s)://jupyterhost-url-or-ip"'
+                sys.exit(1)
             name, host = name_hosts[0], name_hosts[1]
+            if name and host:
+                if name not in service_hosts:
+                    service_hosts[name] = {'hosts': []}
+                service_hosts[name]['hosts'].append(host)
 
-            if not user_dict['__IFDEF_%s_URL__' % name]:
-                user_dict['__IFDEF_%s_URL__' % name] = 'Define'
+        for name, values in service_hosts.items():
+            # Service definitions
+            u_name = name.upper()
+            new_def = "__IFDEF_%s_URL__ %s_URL __%s_URL__\n" % (u_name, u_name,
+                                                                u_name)
+            if new_def not in jupyter_def_inserts[
+                    'JupyterDefinitionsPlaceholder']:
+                jupyter_def_inserts['JupyterDefinitionsPlaceholder']\
+                    .append(new_def)
 
-            if not user_dict['__%s_URL__' % name]:
-                user_dict['__%s_URL__' % name] = '/' + name
+            # Prepare MiG conf template for jupyter sections
+            section_header = '[__JUPYTER_%s__]\n' % u_name
+            section_name = 'service_name=__JUPYTER_%s_NAME__\n' % name
+            section_hosts = 'service_hosts=__JUPYTER_%s_HOSTS__\n' % name
 
-            user_dict['__JUPYTER_HOSTS__'] = service['hosts']
-            # TODO, add jupyter service base url as a definition
-            # to jupyter defs
+            for section_item in (section_header, section_name, section_hosts):
+                if section_item not in jupyter_config_inserts[
+                        'JupyterSectionsPlaceholder']:
+                    jupyter_config_inserts['JupyterSectionsPlaceholder']\
+                        .append(section_item)
 
-            hosts = service['hosts'].split(' ')
-            # Insert hosts into jupyter-proxy-template
-            for i_h, host in enumerate(hosts):
+            user_values = {
+                '__IFDEF_%s_URL__' % u_name: 'Define',
+                '__%s_URL__' % u_name: '/' + name,
+                '__JUPYTER_%s__' % u_name: 'JUPYTER_%s' % u_name,
+                '__JUPYTER_%s_NAME__' % name: name,
+                '__JUPYTER_%s_HOSTS__' % name: ' '.join(values['hosts'])
+            }
+
+            # Update user_dict with definition values
+            for u_k, u_v in user_values.items():
+                if u_k not in user_dict:
+                    user_dict[u_k] = u_v
+
+            # Prepare proxy conf
+            
+
+
+            # Populate apache confs with hosts definitions and balancer members
+            for i_h, host in enumerate(values['hosts']):
+                name_index = '%s_%s' % (u_name, i_h)
                 member = "BalancerMember %s route=%s retry=600 timeout=40\n" % (
-                    "${JUPYTER_HOST_%s}" % i_h, i_h)
-                ws_member = member.replace("${JUPYTER_HOST_%s}" % i_h,
-                                           "${WS_JUPYTER_HOST_%s}" % i_h)
+                    "${JUPYTER_%s}" % name_index, i_h)
+                ws_member = member.replace("${JUPYTER_%s}" % name_index,
+                                           "${WS_JUPYTER_%s}" % name_index)
                 member_def = "__JUPYTER_COMMENTED__        " + member
                 ws_member_def = "__JUPYTER_COMMENTED__        " + ws_member
 
@@ -569,44 +617,53 @@ cert, oid and sid based https!
                 jupyter_proxy_inserts['WSBalancerMemberPlaceholder'].append(
                     ws_member_def)
 
-                member_helper = "__IFDEF_JUPYTER_HOST_%s__ " \
-                                "JUPYTER_HOST_%s __JUPYTER_HOST_%s__\n" % (
-                                    i_h, i_h, i_h)
-                ws_member_helper = "__IFDEF_WS_JUPYTER_HOST_%s__ WS_JUPYTER_HOST_%s " \
-                                   "__WS_JUPYTER_HOST_%s__\n" % (i_h, i_h, i_h)
+                member_helper = "__IFDEF_JUPYTER_%s__ " \
+                                "JUPYTER_%s __JUPYTER_%s__\n" % (
+                                    name_index, name_index, name_index)
+                ws_member_helper = "__IFDEF_WS_JUPYTER_%s__ WS_JUPYTER_%s "\
+                    "__WS_JUPYTER_%s__\n" % (name_index, name_index, name_index)
 
-                jupyter_def_inserts['JupyterHostsPlaceholder'].append(
+                jupyter_def_inserts['JupyterDefinitionsPlaceholder'].append(
                     member_helper)
-                jupyter_def_inserts['JupyterHostsPlaceholder'].append(
+                jupyter_def_inserts['JupyterDefinitionsPlaceholder'].append(
                     ws_member_helper)
 
-                user_dict['__IFDEF_JUPYTER_HOST_%s__' % i_h] = 'Define'
-                user_dict['__IFDEF_WS_JUPYTER_HOST_%s__' % i_h] = 'Define'
-
-                user_dict['__JUPYTER_HOST_%s__' % i_h] = host
                 ws_host = host.replace(
                     "https://", "wss://").replace("http://", "ws://")
-                user_dict['__WS_JUPYTER_HOST_%s__' % i_h] = ws_host
+                user_values = {
+                    '__IFDEF_JUPYTER_%s__' % name_index: 'Define',
+                    '__IFDEF_WS_JUPYTER_%s__' % name_index: 'Define',
+                    '__JUPYTER_%s__' % name_index: host,
+                    '__WS_JUPYTER_%s__' % name_index: ws_host
+                }
+
+                for u_k, u_v in user_values.items():
+                    if u_k not in user_dict:
+                        user_dict[u_k] = u_v
 
                 # No user supplied port, assign based on url prefix
                 if len(host.split(":")) < 3:
                     if host.startswith("https://"):
-                        user_dict['__JUPYTER_HOST_%s__' % i_h] += ":443"
-                        user_dict['__WS_JUPYTER_HOST_%s__' % i_h] += ":443"
+                        user_dict['__JUPYTER_%s__' % name_index] += ":443"
+                        user_dict['__WS_JUPYTER_%s__' % name_index] += ":443"
                     else:
-                        user_dict['__JUPYTER_HOST_%s__' % i_h] += ":80"
-                        user_dict['__WS_JUPYTER_HOST_%s__' % i_h] += ":80"
+                        user_dict['__JUPYTER_%s__' % name_index] += ":80"
+                        user_dict['__WS_JUPYTER_%s__' % name_index] += ":80"
 
         insert_list.extend([
             ("apache-MiG-jupyter-def-template.conf", jupyter_def_inserts),
             ("apache-MiG-jupyter-openid-template.conf", jupyter_openid_inserts),
             ("apache-MiG-jupyter-proxy-template.conf", jupyter_proxy_inserts),
-            ("apache-MiG-jupyter-rewrite-template.conf", jupyter_rewrite_inserts)
+            ("apache-MiG-jupyter-rewrite-template.conf", jupyter_rewrite_inserts),
+            ("MiGserver-template.conf", jupyter_config_inserts)
         ])
 
         cleanup_list.extend([
             ("apache-MiG-jupyter-def-template.conf", "__IFDEF"),
-            ("apache-MiG-jupyter-proxy-template.conf", "BalancerMember ${")
+            ("apache-MiG-jupyter-proxy-template.conf", "BalancerMember ${"),
+            ("MiGserver-template.conf", "[__JUPYTER_"),
+            ("MiGserver-template.conf", "service_name=__JUPYTER_"),
+            ("MiGserver-template.conf", "service_hosts=__JUPYTER_")
         ])
 
     else:

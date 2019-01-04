@@ -158,7 +158,7 @@ RUN ./generateconfs.py \
     --enable_crontab=True \
     --enable_imnotify=True \
     --enable_jupyter=True \
-    --jupyter_services="dag modi" \
+    --jupyter_services="dag.http://192.168.100.10 dag.https://192.168.100.11 modi.http://192.168.100.11" \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
@@ -198,9 +198,9 @@ RUN cp generated-confs/MiGserver.conf $MIG_ROOT/mig/server/ \
     && cp generated-confs/index.html $MIG_ROOT/state/user_home/
 
 # Prepare oiddiscover for httpd
-RUN cd $MIG_ROOT/mig \
-    && python shared/httpsclient.py | grep -A 80 "xml version" \
-    > $MIG_ROOT/state/wwwpublic/oiddiscover.xml
+# RUN cd $MIG_ROOT/mig \
+#     && python shared/httpsclient.py | grep -A 80 "xml version" \
+#     > $MIG_ROOT/state/wwwpublic/oiddiscover.xml
 
 USER root
 
