@@ -50,6 +50,8 @@ from shared.defaults import default_http_port, default_https_port, \
     STRONG_SSH_CIPHERS, STRONG_SSH_LEGACY_CIPHERS, STRONG_SSH_MACS, \
     STRONG_SSH_LEGACY_MACS, CRACK_USERNAME_REGEX
 from shared.safeeval import subprocess_call, subprocess_popen, subprocess_pipe
+from shared.jupyter import gen_balancer_proxy_template, gen_openid_template, \
+    gen_rewrite_template
 
 
 def fill_template(template_file, output_file, settings, eat_trailing_space=[],
@@ -540,10 +542,8 @@ cert, oid and sid based https!
         jupyter_def_inserts = {'JupyterDefinitionsPlaceholder': []}
         jupyter_openid_inserts = {'JupyterOpenIDPlaceholder': []}
         jupyter_rewrite_inserts = {'JupyterRewritePlaceholder': []}
-        jupyter_proxy_inserts = {
-            'BalancerMemberPlaceholder': [],
-            'WSBalancerMemberPlaceholder': []
-        }
+        jupyter_proxy_setup = {'JupyterProxyPlaceholder': []}
+        jupyter_proxy_inserts = {}
         jupyter_config_inserts = {'JupyterSectionsPlaceholder': []}
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
@@ -567,8 +567,10 @@ cert, oid and sid based https!
         for name, values in service_hosts.items():
             # Service definitions
             u_name = name.upper()
-            new_def = "__IFDEF_%s_URL__ %s_URL __%s_URL__\n" % (u_name, u_name,
-                                                                u_name)
+            if_def = '__IFDEF_%s_URL__' % u_name
+            def_name = '%s_URL' % u_name
+            def_value_name = '__%s_URL__' % u_name
+            new_def = "%s %s %s\n" % (if_def, def_name, def_value_name)
             if new_def not in jupyter_def_inserts[
                     'JupyterDefinitionsPlaceholder']:
                 jupyter_def_inserts['JupyterDefinitionsPlaceholder']\
@@ -585,9 +587,10 @@ cert, oid and sid based https!
                     jupyter_config_inserts['JupyterSectionsPlaceholder']\
                         .append(section_item)
 
+            url = '/' + name
             user_values = {
-                '__IFDEF_%s_URL__' % u_name: 'Define',
-                '__%s_URL__' % u_name: '/' + name,
+                if_def: 'Define',
+                def_value_name: url,
                 '__JUPYTER_%s__' % u_name: 'JUPYTER_%s' % u_name,
                 '__JUPYTER_%s_NAME__' % name: name,
                 '__JUPYTER_%s_HOSTS__' % name: ' '.join(values['hosts'])
@@ -598,9 +601,28 @@ cert, oid and sid based https!
                 if u_k not in user_dict:
                     user_dict[u_k] = u_v
 
-            # Prepare proxy conf
-            
+            # Get proxy template and append to template conf
+            member_placeholder = "# %sPlaceholder" % u_name
+            ws_member_placeholder = "# WS%sPlaceholder" % u_name
+            proxy_template = gen_balancer_proxy_template(url, def_name, name,
+                                                         member_placeholder,
+                                                         ws_member_placeholder)
+            jupyter_proxy_setup['JupyterProxyPlaceholder'].append(
+                proxy_template)
+            jupyter_proxy_inserts[member_placeholder] = []
+            jupyter_proxy_inserts[ws_member_placeholder] = []
 
+            # Setup apache openid template
+            openid_template = gen_openid_template(url, def_name)
+            jupyter_openid_inserts['JupyterOpenIDPlaceholder'].append(
+                openid_template
+            )
+
+            # Setup apache rewrite template
+            rewrite_template = gen_rewrite_template(url, def_name)
+            jupyter_rewrite_inserts['JupyterRewritePlaceholder'].append(
+                rewrite_template
+            )
 
             # Populate apache confs with hosts definitions and balancer members
             for i_h, host in enumerate(values['hosts']):
@@ -612,10 +634,8 @@ cert, oid and sid based https!
                 member_def = "__JUPYTER_COMMENTED__        " + member
                 ws_member_def = "__JUPYTER_COMMENTED__        " + ws_member
 
-                jupyter_proxy_inserts['BalancerMemberPlaceholder'].append(
-                    member_def)
-                jupyter_proxy_inserts['WSBalancerMemberPlaceholder'].append(
-                    ws_member_def)
+                jupyter_proxy_inserts[member_placeholder].append(member_def)
+                jupyter_proxy_inserts[ws_member_placeholder].append(ws_member_def)
 
                 member_helper = "__IFDEF_JUPYTER_%s__ " \
                                 "JUPYTER_%s __JUPYTER_%s__\n" % (
@@ -653,6 +673,7 @@ cert, oid and sid based https!
         insert_list.extend([
             ("apache-MiG-jupyter-def-template.conf", jupyter_def_inserts),
             ("apache-MiG-jupyter-openid-template.conf", jupyter_openid_inserts),
+            ("apache-MiG-jupyter-proxy-template.conf", jupyter_proxy_setup),
             ("apache-MiG-jupyter-proxy-template.conf", jupyter_proxy_inserts),
             ("apache-MiG-jupyter-rewrite-template.conf", jupyter_rewrite_inserts),
             ("MiGserver-template.conf", jupyter_config_inserts)
@@ -660,7 +681,7 @@ cert, oid and sid based https!
 
         cleanup_list.extend([
             ("apache-MiG-jupyter-def-template.conf", "__IFDEF"),
-            ("apache-MiG-jupyter-proxy-template.conf", "BalancerMember ${"),
+            ("apache-MiG-jupyter-proxy-template.conf", "__JUPYTER_COMMENTED__"),
             ("MiGserver-template.conf", "[__JUPYTER_"),
             ("MiGserver-template.conf", "service_name=__JUPYTER_"),
             ("MiGserver-template.conf", "service_hosts=__JUPYTER_")
@@ -668,7 +689,6 @@ cert, oid and sid based https!
 
     else:
         user_dict['__JUPYTER_COMMENTED__'] = '#'
-        user_dict['__JUPYTER_SERVICES__'] = []
 
     # Enable Duplicati integration only if explicitly requested
     if user_dict['__ENABLE_DUPLICATI__'].lower() == 'true':
@@ -1361,7 +1381,10 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
     apache_httpd_conf = os.path.join(dst, 'httpd.conf')
     apache_ports_conf = os.path.join(dst, 'ports.conf')
     apache_mig_conf = os.path.join(dst, 'MiG.conf')
-    apache_jupyter_conf = os.path.join(dst, 'MiG-jupyter.conf')
+    apache_jupyter_def = os.path.join(dst, 'MiG-jupyter-def.conf')
+    apache_jupyter_openid = os.path.join(dst, 'MiG-jupyter-openid.conf')
+    apache_jupyter_proxy = os.path.join(dst, 'MiG-jupyter-proxy.conf')
+    apache_jupyter_rewrite = os.path.join(dst, 'MiG-jupyter-rewrite.conf')
     server_conf = os.path.join(dst, 'MiGserver.conf')
     trac_ini = os.path.join(dst, 'trac.ini')
     apache_initd_script = os.path.join(dst, 'apache-%s' % user)
@@ -1385,7 +1408,14 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
     print 'sudo cp -f -d %s %s/' % (apache_httpd_conf, apache_dir)
     print 'sudo cp -f -d %s %s/' % (apache_ports_conf, apache_dir)
     print 'sudo cp -f -d %s %s/conf.d/' % (apache_mig_conf, apache_dir)
-    print 'sudo cp -f -d %s %s/' % (apache_jupyter_conf, apache_dir)
+    # TODO, update to new jupyter apache configurations
+    print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_def, apache_dir)
+    print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_openid,
+                                                  apache_dir)
+    print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_proxy,
+                                                  apache_dir)
+    print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_rewrite,
+                                                  apache_dir)
     print 'sudo cp -f -d %s %s/' % (apache_initd_script, apache_dir)
     print 'sudo mkdir -p %s %s %s ' % (apache_run, apache_lock, apache_log)
 
