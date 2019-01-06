@@ -30,10 +30,10 @@
 
 def gen_balancer_proxy_template(url, define, name, member_placeholder,
                                 ws_member_placeholder):
-    """ Generates an apache configuration section template for a particular jupyter
-    service. Relies on the
+    """ Generates an apache proxy balancer configuration section template
+     for a particular jupyter service. Relies on the
      https://httpd.apache.org/docs/2.4/mod/mod_proxy_balancer.html module to
-     generate a balancer proxy configuration.
+     generate the balancer proxy configuration.
 
     url: Setting the url_path to where the jupyter service is to be located.
     define: The name of the apache variable containing the 'url' value.
@@ -88,6 +88,12 @@ __JUPYTER_COMMENTED__ </IfDefine>""" % fill_helpers
 
 
 def gen_openid_template(url, define):
+    """ Generates an openid apache configuration section template
+     for a particular jupyter service.
+
+    url: Setting the url_path to where the jupyter service is to be located.
+    define: The name of the apache variable containing the 'url' value.
+    """
 
     assert isinstance(url, str)
     assert isinstance(define, str)
@@ -111,6 +117,12 @@ __JUPYTER_COMMENTED__ </IfDefine>
 
 
 def gen_rewrite_template(url, define):
+    """ Generates an rewrite apache configuration section template
+     for a particular jupyter service.
+
+    url: Setting the url_path to where the jupyter service is to be located.
+    define: The name of the apache variable containing the 'url' value.
+    """
 
     assert isinstance(url, str)
     assert isinstance(define, str)
