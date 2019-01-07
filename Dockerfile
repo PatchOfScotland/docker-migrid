@@ -130,6 +130,10 @@ RUN pip install --user \
 RUN pip install --user \
     pyftpdlib
 
+# Modules required by jupyter
+RUN pip install --user \
+    requests
+
 # Install and configure MiG
 ARG MIG_CHECKOUT=4032
 RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
@@ -198,10 +202,15 @@ RUN cp generated-confs/MiGserver.conf $MIG_ROOT/mig/server/ \
     && cp generated-confs/static-skin.css $MIG_ROOT/mig/images/ \
     && cp generated-confs/index.html $MIG_ROOT/state/user_home/
 
+
+# Enable jupyter menu
+RUN sed -i -e 's/#user_menu =/user_menu = jupyter/g' $MIG_ROOT/mig/server/MiGserver.conf \
+    && sed -i -e 's/loglevel = info/loglevel = debug/g' $MIG_ROOT/mig/server/MiGserver.conf
+
 # Prepare oiddiscover for httpd
-# RUN cd $MIG_ROOT/mig \
-#     && python shared/httpsclient.py | grep -A 80 "xml version" \
-#     > $MIG_ROOT/state/wwwpublic/oiddiscover.xml
+RUN cd $MIG_ROOT/mig \
+    && python shared/httpsclient.py | grep -A 80 "xml version" \
+    > $MIG_ROOT/state/wwwpublic/oiddiscover.xml
 
 USER root
 
