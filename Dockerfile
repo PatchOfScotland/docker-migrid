@@ -157,6 +157,7 @@ RUN ./generateconfs.py \
     --enable_events=True \
     --enable_crontab=True \
     --enable_imnotify=True \
+    --enable_hsts=True \
     --enable_jupyter=True \
     --jupyter_services="dag.http://192.168.100.10 dag.https://192.168.100.11 modi.http://192.168.100.11" \
     --base_fqdn=$DOMAIN \
