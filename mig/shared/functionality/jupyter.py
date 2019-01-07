@@ -251,7 +251,9 @@ def main(client_id, user_arguments_dict):
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
     jupyter_service = accepted['service'][-1]
-    services = [service['name']
+    logger.info("Valid jupyter services: %s" % configuration.jupyter_services)
+
+    services = [service['service_name']
                 for service in configuration.jupyter_services]
 
     if jupyter_service not in services:
