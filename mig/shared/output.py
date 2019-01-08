@@ -2283,7 +2283,7 @@ Reload thread</a></p>''' % (i['vgrid_name'], i['thread']))
                 lines.append('<h2>Error</h2><p>%s</p>' % i['error'])
         elif i['object_type'] == 'services':
             services = i['services']
-            lines.append('<form method="post" action="reqjupyterservice.py">')
+            lines.append('<form method="get" action="reqjupyterservice.py">')
             for service in services:
                 lines.append('''
                 <input class="btn" type="submit" name="service" value=%s>

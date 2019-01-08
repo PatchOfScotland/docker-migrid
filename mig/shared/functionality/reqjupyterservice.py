@@ -176,24 +176,23 @@ def get_host_from_service(configuration, service):
     return None
 
 
-def jupyter_host(configuration, output_objects, user):
+def jupyter_host(configuration, output_objects, user, url):
     """
     Returns the users jupyterhub host
     :param configuration: the MiG Configuration object
     :param output_objects:
     :param user: the user identifier used in the Remote-User header to
     authenticate against the jupyterhub server
+    :param url: the target url of the jupyter host
     :return: output_objects and a 200 OK status for the webserver to return
     to the client
     """
-    configuration.logger.info(
-        "User: %s finished, redirecting to the jupyter host" % user)
-    status = returnvalues.OK
-    home = configuration.jupyter_base_url + '/home'
-    headers = [('Location', home), ('Remote-User', user)]
+    _logger = configuration.logger
+    _logger.info(
+        "User: %s finished, redirecting to the jupyter host at: %s" % (user, url))
+    headers = [('Location', url), ('Remote-User', user)]
     output_objects.append({'object_type': 'start', 'headers': headers})
-    return (output_objects, status)
-
+    return (output_objects, returnvalues.OK)
 
 def reset():
     """
@@ -349,7 +348,8 @@ def main(client_id, user_arguments_dict):
     # Make sure ssh daemon does not complain
     tighten_key_perms(configuration, client_id)
 
-    url_base = configuration.jupyter_base_url
+    url_base = '/' + service['service_name']
+    url_home = url_base + '/home'
     url_auth = host + url_base + '/hub/home'
     url_data = host + url_base + '/hub/data'
 
@@ -400,7 +400,7 @@ def main(client_id, user_arguments_dict):
         session.post(url_data, headers=auth_mount_header)
 
         # Redirect client to jupyterhub
-        return jupyter_host(configuration, output_objects, remote_user)
+        return jupyter_host(configuration, output_objects, remote_user, url_home)
 
     # Create a new keyset
     # Create login session id
@@ -476,7 +476,7 @@ def main(client_id, user_arguments_dict):
     linkloc_user_home = os.path.join(link_home, session_id)
     make_symlink(user_home_dir, linkloc_user_home, logger)
 
-    return jupyter_host(configuration, output_objects, remote_user)
+    return jupyter_host(configuration, output_objects, remote_user, url_home)
 
 
 if __name__ == "__main__":
