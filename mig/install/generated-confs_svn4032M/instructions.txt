@@ -26,9 +26,14 @@ httpd.conf, ports.conf and envvars to /etc/httpd/:
 sudo cp generated-confs/apache2.conf /etc/httpd/
 sudo cp generated-confs/httpd.conf /etc/httpd/
 sudo cp generated-confs/ports.conf /etc/httpd/
-sudo cp generated-confs/MiG-jupyter.conf /etc/httpd/
-sudo cp generated-confs/MiG-jupyter-def.conf /etc/httpd/
 sudo cp generated-confs/envvars /etc/httpd/
+
+If jupyter is enabled, the following generated configuration files should be 
+copied as follows,
+sudo cp generated-confs/MiG-jupyter-def.conf /etc/httpd/conf.extras.d
+sudo cp generated-confs/MiG-jupyter-openid.conf /etc/httpd/conf.extras.d
+sudo cp generated-confs/MiG-jupyter-proxy.conf /etc/httpd/conf.extras.d
+sudo cp generated-confs/MiG-jupyter-rewrite.conf /etc/httpd/conf.extras.d
 
 and if Trac is enabled, the generated trac.ini to /home/mig/mig/server/:
 cp generated-confs/trac.ini /home/mig/mig/server/
