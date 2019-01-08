@@ -682,6 +682,8 @@ cert, oid and sid based https!
         cleanup_list.extend([
             ("apache-MiG-jupyter-def-template.conf", "__IFDEF"),
             ("apache-MiG-jupyter-proxy-template.conf", "__JUPYTER_COMMENTED__"),
+            ("apache-MiG-jupyter-openid-template.conf", "__JUPYTER_COMMENTED__"),
+            ("apache-MiG-jupyter-rewrite-template.conf", "__JUPYTER_COMMENTED__"),
             ("MiGserver-template.conf", "[__JUPYTER_"),
             ("MiGserver-template.conf", "service_name=__JUPYTER_"),
             ("MiGserver-template.conf", "service_hosts=__JUPYTER_")
