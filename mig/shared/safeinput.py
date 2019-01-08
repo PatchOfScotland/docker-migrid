@@ -1367,6 +1367,9 @@ def guess_type(name):
         for key in ('gdp_workzone_id', ):
             __type_map[key] = valid_gdp_workzone_id
 
+        for key in ('service', ):
+            __type_map[key] = valid_ascii
+
     # Return type checker from __type_map with fall back to alphanumeric
 
     return __type_map.get(name.lower().strip(), valid_alphanumeric)

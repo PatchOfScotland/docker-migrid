@@ -39,10 +39,7 @@ from shared.html import themed_styles, jquery_ui_js, man_base_js
 def signature():
     """Signature of the main function"""
 
-    defaults = {
-        'operation': ['show',
-                      'select']
-    }
+    defaults = {}
     return ['jupyter', defaults]
 
 
@@ -63,8 +60,6 @@ def main(client_id, user_arguments_dict):
     if not validate_status:
         return (accepted, returnvalues.CLIENT_ERROR)
 
-    operation = accepted['operation'][-1]
-
     logger.debug("User: %s executing %s", client_id, op_name)
     if not configuration.site_enable_jupyter:
         output_objects.append(
@@ -79,20 +74,21 @@ def main(client_id, user_arguments_dict):
              'The required sftp service is not enabled on the system'})
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
-    services = configuration.jupyter_services
-
-    # Request a jupyter services with service name
-    if operation == 'select':
-        pass
+    services = [{'object_type': 'service',
+                 'name': options['service_name']}
+                for service, options in configuration.jupyter_services.items()]
 
     # Show jupyter services menu
-    (add_import, add_init, add_ready) = man_base_js(configuration, [])
+    (add_import, add_init, add_ready)= man_base_js(configuration, [])
 
-    title_entry = find_entry(output_objects, 'title')
-    title_entry['text'] = 'Select a Jupyter Service'
-    title_entry['style'] = themed_styles(configuration)
-    title_entry['javascript'] = jquery_ui_js(configuration,
+    title_entry= find_entry(output_objects, 'title')
+    title_entry['style']= themed_styles(configuration)
+    title_entry['javascript']= jquery_ui_js(configuration,
                                              add_import,
                                              add_init, add_ready)
+    output_objects.append({'object_type': 'header',
+                           'text': 'Select a Jupyter Service'})
+    output_objects.append({'object_type': 'services',
+                           'services': services})
 
     return (output_objects, returnvalues.OK)

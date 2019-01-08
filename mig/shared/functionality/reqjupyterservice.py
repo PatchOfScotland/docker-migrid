@@ -149,18 +149,22 @@ def get_newest_mount(jupyter_mounts):
     return latest, old_mounts
 
 
-# TODO switch to service
 def get_host_from_service(configuration, service):
     """
     Returns a URL to an active jupyterhub host
     if no active host is found, None is returned
     :param configuration: The MiG Configuration object
+    :param service: A service object that an active hosts should be found from
     :return: url string or None
     """
     _logger = configuration.logger
-    hosts = configuration.jupyter_hosts.split(" ")
+    hosts = service['service_hosts'].split(" ")
+    _logger.info("hosts %s" % hosts)
     while hosts:
-        rng = random.randrange(0, len(hosts) - 1)
+        if len(hosts) == 1:
+            rng = 0
+        else:
+            rng = random.randrange(0, len(hosts) - 1)
         try:
             with requests.session() as session:
                 session.get(hosts[rng])
@@ -209,6 +213,29 @@ def reset():
     if os.path.exists(link_path):
         shutil.rmtree(link_path)
 
+def valid_jupyter_service(configuration, service):
+    """
+    Function that validates that the
+    passed service is correctly structured.
+    :param configuration: the MiG Configuration object
+    :param service: a service dictionary object that describes a jupyter service
+    """
+    _logger = configuration.logger
+    if not isinstance(service, dict):
+        _logger.error("The jupyter service %s has an incorrect structure %s, requires dictionary" % (
+            service, type(service)))
+        return False
+
+    if 'service_name' not in service:
+        _logger.error(
+            "The jupyter service %s is missing a required service_name key" % service)
+        return False
+
+    if 'service_hosts' not in service:
+        _logger.error(
+            "The jupyter service %s is missing a required hosts key" % service)
+        return False
+    return True
 
 def signature():
     """Signature of the main function"""
@@ -250,28 +277,36 @@ def main(client_id, user_arguments_dict):
              'The required sftp service is not enabled on the system'})
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
-    jupyter_service = accepted['service'][-1]
-    logger.info("Valid jupyter services: %s" % configuration.jupyter_services)
+    requested_service = accepted['service'][-1]
+    service = {k: v for section, options in configuration.jupyter_services.items()
+               for k, v in options.items() if options['service_name'] == requested_service}
 
-    services = [service['service_name']
-                for service in configuration.jupyter_services]
-
-    if jupyter_service not in services:
+    if not service:
+        valid_services = [option['name'] for section,
+                          options in configuration.jupyter_services.items()]
         output_objects.append(
             {'object_type': 'error_text',
              'text': '%s is not a valid jupyter service, '
-             'allowed include %s' % (jupyter_service, services)})
+             'allowed include %s' % (requested_service, valid_services)})
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
-    host = get_host_from_service(configuration, jupyter_service)
+    valid_service = valid_jupyter_service(configuration, service)
+    if not valid_service:
+        output_objects.append(
+            {'object_type': 'error_text',
+            'text': 'The service %s appears to be misconfigured, ' \
+            'please contact a system administrator about this issue' % requested_service}
+        )
+        return (output_objects, returnvalues.SYSTEM_ERROR)
+
+    host = get_host_from_service(configuration, service)
     # Get an active jupyterhost
-    #host = get_jupyter_host(configuration)
     if host is None:
         logger.error("No active jupyterhub host could be found")
         output_objects.append(
             {'object_type': 'error_text', 'text':
-             'Failed to establish connection to the Jupyter service'})
-        return (output_objects, returnvalues.CLIENT_ERROR)
+             'Failed to establish connection to the %s Jupyter service' % service['service_name']})
+        return (output_objects, returnvalues.SYSTEM_ERROR)
 
     username = unescape(os.environ.get('REMOTE_USER', '')).strip()
     # TODO, activate admin info

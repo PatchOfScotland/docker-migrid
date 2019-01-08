@@ -31,7 +31,11 @@ RUN yum install -y mod_auth_openid
 
 # Setup user
 ARG USER=mig
-RUN useradd -ms /bin/bash $USER
+ENV UID=1000
+ENV GID=1000
+
+RUN groupadd -g $GID $USER
+RUN useradd -u $UID -g $GID -ms /bin/bash $USER
 
 ARG DOMAIN=migrid.test
 # MiG environment
@@ -72,7 +76,7 @@ RUN touch /etc/pki/CA/index.txt \
 
 # Daemon keys
 RUN cat server.{key,crt} > combined.pem \
-    && chown mig:mig combined.pem \
+    && chown $USER:$USER combined.pem \
     && ssh-keygen -y -f combined.pem > combined.pub \
     && chown 0:0 *.key server.crt ca.pem \
     && chmod 400 *.key server.crt ca.pem combined.pem
@@ -138,10 +142,10 @@ RUN pip install --user \
 ARG MIG_CHECKOUT=4032
 RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
 
-ADD mig /home/mig/mig
+ADD mig $MIG_ROOT/mig
 
 USER root
-RUN chown -R mig:mig /home/mig/mig
+RUN chown -R $USER:$USER $MIG_ROOT/mig
 
 USER $USER
 
