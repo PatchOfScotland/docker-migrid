@@ -11,6 +11,6 @@ c.DockerSpawner.remove_containers = True
 
 c.DockerSpawner.network_name = 'docker-migrid_default'
 
-c.JupyterHub.authenticator_class = 'jhubauthenticators.DummyAuthenticator'
-c.DummyAuthenticator.password = 'password'
-
+c.JupyterHub.authenticator_class = 'jhubauthenticators.DataRemoteUserAuthenticator'
+c.DataRemoteUserAuthenticator.data_headers = ['Mount']
+c.Authenticator.enable_auth_state = True

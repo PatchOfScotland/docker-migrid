@@ -64,6 +64,8 @@ services:
     container_name: dag
     depends_on:
       - devdns
+    environment:
+      - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
     volumes:
       - ./jupyterhub_config/jupyterhub_config.py:/srv/jupyterhub/jupyter_config.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
