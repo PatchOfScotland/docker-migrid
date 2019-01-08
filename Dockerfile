@@ -167,7 +167,7 @@ RUN ./generateconfs.py \
     --enable_imnotify=True \
     --enable_hsts=True \
     --enable_jupyter=True \
-    --jupyter_services="dag.http://192.168.100.10 dag.https://192.168.100.11 modi.http://192.168.100.11" \
+    --jupyter_services="dag.http://dag.test" \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
