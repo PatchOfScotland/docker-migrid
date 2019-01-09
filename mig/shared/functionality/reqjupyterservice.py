@@ -226,18 +226,21 @@ def valid_jupyter_service(configuration, service):
     """
     _logger = configuration.logger
     if not isinstance(service, dict):
-        _logger.error("The jupyter service %s has an incorrect structure %s, requires dictionary" % (
-            service, type(service)))
+        _logger.error('The jupyter service %s has an incorrect structure %s,'
+                      ' requires dictionary' % (
+                          service, type(service)))
         return False
 
     if 'service_name' not in service:
         _logger.error(
-            "The jupyter service %s is missing a required service_name key" % service)
+            "The jupyter service %s is missing a required service_name key"
+            % service)
         return False
 
     if 'service_hosts' not in service:
         _logger.error(
-            "The jupyter service %s is missing a required hosts key" % service)
+            "The jupyter service %s is missing a required hosts key"
+            % service)
         return False
     return True
 
