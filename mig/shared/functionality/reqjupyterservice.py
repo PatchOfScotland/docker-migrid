@@ -55,7 +55,8 @@ import shared.returnvalues as returnvalues
 from shared.base import client_id_dir
 from shared.conf import get_configuration_object
 from shared.defaults import session_id_bytes
-from shared.fileio import make_symlink, pickle, unpickle, write_file
+from shared.fileio import make_symlink, pickle, unpickle, write_file, \
+    delete_symlink, delete_file
 from shared.functional import validate_input_and_cert, REJECT_UNSET
 from shared.httpsclient import unescape
 from shared.init import initialize_main_variables
@@ -111,7 +112,8 @@ def remove_jupyter_mount(jupyter_mount_path, configuration):
     # Remove jupyter mount session symlinks for the default sftp service
     for link in os.listdir(link_home):
         if link in filename:
-            os.remove(os.path.join(link_home, link))
+            delete_symlink(os.path.join(link_home, link),
+                           configuration.logger)
 
     # Remove subsys sftp files
     if configuration.site_enable_sftp_subsys:
@@ -119,10 +121,11 @@ def remove_jupyter_mount(jupyter_mount_path, configuration):
                                 'jupyter_mount')
         for auth_file in os.listdir(auth_dir):
             if auth_file.split('.authorized_keys')[0] in filename:
-                os.remove(os.path.join(auth_dir, auth_file))
+                delete_file(os.path.join(auth_dir, auth_file),
+                            configuration.logger)
 
     # Remove old pickle state file
-    os.remove(jupyter_mount_path)
+    delete_file(jupyter_mount_path, configuration.logger)
 
 
 def get_newest_mount(jupyter_mounts):
@@ -194,6 +197,7 @@ def jupyter_host(configuration, output_objects, user, url):
     output_objects.append({'object_type': 'start', 'headers': headers})
     return (output_objects, returnvalues.OK)
 
+
 def reset():
     """
     Helper function to clean up all jupyter directories and mounts
@@ -211,6 +215,7 @@ def reset():
 
     if os.path.exists(link_path):
         shutil.rmtree(link_path)
+
 
 def valid_jupyter_service(configuration, service):
     """
@@ -235,6 +240,7 @@ def valid_jupyter_service(configuration, service):
             "The jupyter service %s is missing a required hosts key" % service)
         return False
     return True
+
 
 def signature():
     """Signature of the main function"""
@@ -293,8 +299,8 @@ def main(client_id, user_arguments_dict):
     if not valid_service:
         output_objects.append(
             {'object_type': 'error_text',
-            'text': 'The service %s appears to be misconfigured, ' \
-            'please contact a system administrator about this issue' % requested_service}
+             'text': 'The service %s appears to be misconfigured, '
+             'please contact a system administrator about this issue' % requested_service}
         )
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
