@@ -4,6 +4,7 @@ c = get_config()
 c.JupyterHub.ip = '0.0.0.0'
 c.JupyterHub.hub_ip = '0.0.0.0'
 c.JupyterHub.port = 80
+c.JupyterHub.base_url = '/dag'
 c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 
 c.DockerSpawner.container_image = 'nielsbohr/base-notebook:latest'
