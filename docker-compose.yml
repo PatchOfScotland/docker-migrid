@@ -52,12 +52,13 @@ services:
     - "443:443"
     volumes:
     - /var/run/docker.sock:/tmp/docker.sock:ro
-    - ./nginx-proxy.conf:/etc/nginx/conf.d/migrid.conf
-    - ./nginx-proxy-dag.conf:/etc/nginx/conf.d/dag.conf
-    - ./certs/MiG/*.migrid.test/server.crt:/etc/nginx/certs/oid.migrid.test.crt
-    - ./certs/MiG/*.migrid.test/server.crt:/etc/nginx/certs/sid.migrid.test.crt
-    - ./certs/MiG/*.migrid.test/server.key:/etc/nginx/certs/oid.migrid.test.key
-    - ./certs/MiG/*.migrid.test/server.key:/etc/nginx/certs/sid.migrid.test.key
+    - ./nginx-proxy/migrid.conf:/etc/nginx/conf.d/migrid.conf:ro
+    - ./nginx-proxy/dag.conf:/etc/nginx/conf.d/dag.conf:ro
+    - ./nginx-proxy/modi.conf:/etc/nginx/conf.d/modi.conf:ro
+    - ./certs/MiG/*.migrid.test/server.crt:/etc/nginx/certs/oid.migrid.test.crt:ro
+    - ./certs/MiG/*.migrid.test/server.crt:/etc/nginx/certs/sid.migrid.test.crt:ro
+    - ./certs/MiG/*.migrid.test/server.key:/etc/nginx/certs/oid.migrid.test.key:ro
+    - ./certs/MiG/*.migrid.test/server.key:/etc/nginx/certs/sid.migrid.test.key:ro
 
   dag:
     image: nielsbohr/jupyterhub:latest
@@ -67,9 +68,22 @@ services:
     environment:
       - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
     volumes:
-      - ./jupyterhub_config/jupyterhub_config.py:/srv/jupyterhub/jupyter_config.py:ro
+      - ./jupyterhub_config/jupyterhub_dag_config.py:/srv/jupyterhub/jupyter_config.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
     command: jupyterhub -f /srv/jupyterhub/jupyter_config.py
+  
+  modi:
+    image: nielsbohr/jupyterhub:latest
+    container_name: modi
+    depends_on:
+      - devdns
+    environment:
+      - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
+    volumes:
+      - ./jupyterhub_config/jupyterhub_modi_config.py:/srv/jupyterhub/jupyter_config.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    command: jupyterhub -f /srv/jupyterhub/jupyter_config.py
+  
 
 volumes:
   certs:
