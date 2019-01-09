@@ -2285,6 +2285,7 @@ Reload thread</a></p>''' % (i['vgrid_name'], i['thread']))
             services = i['services']
             lines.append('<form method="get" action="reqjupyterservice.py">')
             for service in services:
+                # TODO, switch to ui-button
                 lines.append('''
                 <input class="btn" type="submit" name="service" value=%s>
                 ''' % service['name'])
