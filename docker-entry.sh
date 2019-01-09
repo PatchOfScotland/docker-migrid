@@ -41,12 +41,28 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
+/etc/init.d/migrid start sftp
+ps aux | grep sftp | grep -q -v grep
+status=$?
+if [ $status -ne 0 ]; then
+    echo "Failed to start sftp: $status"
+    exit $status
+fi
+
 while sleep 60; do
     ps aux | grep openid | grep -q -v grep
-
     OPENID_STATUS=$?
+    
     if [ $OPENID_STATUS -ne 0 ]; then
         echo "OpenID service failed."
+        exit 1
+    fi
+
+    ps aux | grep sftp | grep -q -v grep
+    SFTP_STATUS=$?
+    
+    if [ $SFTP_STATUS -ne 0 ]; then
+        echo "Sftp service failed."
         exit 1
     fi
 

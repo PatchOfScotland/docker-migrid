@@ -20,6 +20,7 @@ mounts = [
         'driver_options': {'sshcmd': '{sshcmd}',
                            'id_rsa': '{id_rsa}',
                            'one_time': 'True',
+                           'port': '2222',
                            'reconnect': '', 'big_writes': '', 'allow_other': ''}
     })
 ]
@@ -29,13 +30,18 @@ c.SwarmSpawner.container_spec = {
              '--NotebookApp.ip=0.0.0.0',
              '--NotebookApp.port=8888'],
     'env': {'JUPYTER_ENABLE_LAB': '1',
-            'TZ': 'Europe/Copenhagen'},
-    'image': 'nielsbohr/base-notebook:latest',
-    'mounts': mounts,
-    'name': 'modi'
+            'TZ': 'Europe/Copenhagen'}
 }
 
-c.SwarmSpawner.network_name = 'docker-migrid_default'
+c.SwarmSpawner.dockerimages = [
+    {
+        'image': 'nielsbohr/base-notebook:latest',
+        'mounts': mounts,
+        'name': 'modi'
+    }
+]
+c.SwarmSpawner.jupyterhub_service_name = 'modi'
+c.SwarmSpawner.networks = ['docker-migrid_default']
 
 c.JupyterHub.authenticator_class = 'jhubauthenticators.DataRemoteUserAuthenticator'
 c.DataRemoteUserAuthenticator.data_headers = ['Mount']
