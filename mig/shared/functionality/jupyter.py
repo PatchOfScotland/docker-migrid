@@ -28,7 +28,8 @@
 
 """
 A page for dislaying available jupyter services,
-provides a list of buttons based on configuration.jupyter_services
+provides a list of buttons based on services defined in the
+ configuration.jupyter_services
 """
 
 import shared.returnvalues as returnvalues
