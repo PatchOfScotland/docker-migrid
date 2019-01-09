@@ -27,9 +27,9 @@
 #
 
 """Automatic home drive mount from jupyter
-This backend makes two requests to the target url as picked randomly from the
-configuration.jupyter_hosts list, the first authenticates against the
-jupyterhub server, it passes the Remote-User header with the client_id's email.
+This backend makes two requests to the targeted jupyter service host.
+The first authenticates against the jupyterhub server,
+it passes the Remote-User header with the client_id's email.
 The second request takes the newly instantiated ssh keyset and passes it to the
 jupyterhub server via the Mount header.
 Subsequently any potentially old keysets for this user is removed and the new
@@ -154,8 +154,8 @@ def get_newest_mount(jupyter_mounts):
 
 def get_host_from_service(configuration, service):
     """
-    Returns a URL to an active jupyterhub host
-    if no active host is found, None is returned
+    Returns a URL from one of the services avilable hosts,
+    if no active host is found None is returned.
     :param configuration: The MiG Configuration object
     :param service: A service object that an active hosts should be found from
     :return: url string or None
@@ -284,10 +284,11 @@ def main(client_id, user_arguments_dict):
 
     requested_service = accepted['service'][-1]
     service = {k: v for section, options in configuration.jupyter_services.items()
-               for k, v in options.items() if options['service_name'] == requested_service}
+               for k, v in options.items()
+               if options['service_name'] == requested_service}
 
     if not service:
-        valid_services = [option['name'] for section,
+        valid_services = [options['name'] for section,
                           options in configuration.jupyter_services.items()]
         output_objects.append(
             {'object_type': 'error_text',
@@ -300,7 +301,8 @@ def main(client_id, user_arguments_dict):
         output_objects.append(
             {'object_type': 'error_text',
              'text': 'The service %s appears to be misconfigured, '
-             'please contact a system administrator about this issue' % requested_service}
+             'please contact a system administrator about this issue'
+             % requested_service}
         )
         return (output_objects, returnvalues.SYSTEM_ERROR)
 

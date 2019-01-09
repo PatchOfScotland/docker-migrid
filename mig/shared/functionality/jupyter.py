@@ -27,6 +27,8 @@
 #
 
 """
+A page for dislaying available jupyter services,
+provides a list of buttons based on configuration.jupyter_services
 """
 
 import shared.returnvalues as returnvalues
@@ -79,16 +81,15 @@ def main(client_id, user_arguments_dict):
                 for service, options in configuration.jupyter_services.items()]
 
     # Show jupyter services menu
-    (add_import, add_init, add_ready)= man_base_js(configuration, [])
+    (add_import, add_init, add_ready) = man_base_js(configuration, [])
 
-    title_entry= find_entry(output_objects, 'title')
-    title_entry['style']= themed_styles(configuration)
-    title_entry['javascript']= jquery_ui_js(configuration,
+    title_entry = find_entry(output_objects, 'title')
+    title_entry['style'] = themed_styles(configuration)
+    title_entry['javascript'] = jquery_ui_js(configuration,
                                              add_import,
                                              add_init, add_ready)
     output_objects.append({'object_type': 'header',
                            'text': 'Select a Jupyter Service'})
     output_objects.append({'object_type': 'services',
                            'services': services})
-
     return (output_objects, returnvalues.OK)
