@@ -23,6 +23,7 @@ RUN yum update -y \
     net-tools \
     telnet \
     ca-certificates \
+    openssh-server \
     mercurial \
     python-dev
 
@@ -96,7 +97,8 @@ RUN ln -s MiG/*.$DOMAIN/server.crt server.crt \
     && ln -s MiG/*.$DOMAIN/crl.pem crl.pem \
     && ln -s MiG/*.$DOMAIN/cacert.pem cacert.pem \
     && ln -s MiG/*.$DOMAIN/combined.pem combined.pem \
-    && ln -s MiG/*.$DOMAIN/combined.pub combined.pub
+    && ln -s MiG/*.$DOMAIN/combined.pub combined.pub \
+    && ln -s MiG/*.$DOMAIN io.migrid.test
 
 WORKDIR $MIG_ROOT
 USER $USER
@@ -167,7 +169,8 @@ RUN ./generateconfs.py \
     --enable_imnotify=True \
     --enable_hsts=True \
     --enable_jupyter=True \
-    --jupyter_services="dag.http://dag.test modi.http://modi.test" \
+    --enable_sftp_subsys=True \
+    --jupyter_services="dag.http://dag modi.http://modi" \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
@@ -206,7 +209,6 @@ RUN cp generated-confs/MiGserver.conf $MIG_ROOT/mig/server/ \
     && cp generated-confs/static-skin.css $MIG_ROOT/mig/images/ \
     && cp generated-confs/index.html $MIG_ROOT/state/user_home/
 
-
 # Enable jupyter menu
 RUN sed -i -e 's/#user_menu =/user_menu = jupyter/g' $MIG_ROOT/mig/server/MiGserver.conf \
     && sed -i -e 's/loglevel = info/loglevel = debug/g' $MIG_ROOT/mig/server/MiGserver.conf
@@ -217,6 +219,10 @@ RUN cd $MIG_ROOT/mig \
     > $MIG_ROOT/state/wwwpublic/oiddiscover.xml
 
 USER root
+
+# Sftp subsys config
+RUN cp generated-confs/sshd_config-MiG-sftp-subsys /etc/ssh/ \
+    && chown 0:0 /etc/ssh/sshd_config-MiG-sftp-subsys
 
 RUN chmod 755 generated-confs/envvars \
     && chmod 755 generated-confs/httpd.conf

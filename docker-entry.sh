@@ -41,11 +41,11 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-/etc/init.d/migrid start sftp
-ps aux | grep sftp | grep -q -v grep
+/etc/init.d/migrid start sftpsubsys
+ps aux | grep sshd | grep -q -v grep
 status=$?
 if [ $status -ne 0 ]; then
-    echo "Failed to start sftp: $status"
+    echo "Failed to start sshd: $status"
     exit $status
 fi
 
@@ -58,11 +58,11 @@ while sleep 60; do
         exit 1
     fi
 
-    ps aux | grep sftp | grep -q -v grep
+    ps aux | grep sshd | grep -q -v grep
     SFTP_STATUS=$?
     
     if [ $SFTP_STATUS -ne 0 ]; then
-        echo "Sftp service failed."
+        echo "sshd service failed."
         exit 1
     fi
 

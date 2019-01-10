@@ -20,10 +20,11 @@ mounts = [
         'driver_options': {'sshcmd': '{sshcmd}',
                            'id_rsa': '{id_rsa}',
                            'one_time': 'True',
-                           'port': '2222',
                            'reconnect': '', 'big_writes': '', 'allow_other': ''}
     })
 ]
+
+c.SwarmSpawner.use_user_options = True
 
 c.SwarmSpawner.container_spec = {
     'args': ['/usr/local/bin/start-singleuser.sh',
