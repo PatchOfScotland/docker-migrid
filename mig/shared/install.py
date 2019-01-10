@@ -52,6 +52,7 @@ from shared.defaults import default_http_port, default_https_port, \
 from shared.safeeval import subprocess_call, subprocess_popen, subprocess_pipe
 from shared.jupyter import gen_balancer_proxy_template, gen_openid_template, \
     gen_rewrite_template
+from shared.safeinput import valid_alphanumeric, InputException
 
 
 def fill_template(template_file, output_file, settings, eat_trailing_space=[],
@@ -538,6 +539,8 @@ cert, oid and sid based https!
         # Jupyter requires websockets proxy
         user_dict['__WEBSOCKETS_COMMENTED__'] = ''
 
+        # TODO, switch to __JUPYTER__SECTIONS__ format
+        # prob needs double variable expansion
         # Dynamic apache configuration insert_template lists
         jupyter_def_inserts = {'JupyterDefinitionsPlaceholder': []}
         jupyter_openid_inserts = {'JupyterOpenIDPlaceholder': []}
@@ -551,7 +554,7 @@ cert, oid and sid based https!
         for service in services:
             # TODO, do more checks on format
             name_hosts = service.split(".", 1)
-            if not len(name_hosts) == 2:
+            if len(name_hosts) != 2:
                 print 'Error: You have not correctly formattet '
                 'the jupyter_services parameter, '
                 'expects --jupyter_services="service_name.'
@@ -559,6 +562,12 @@ cert, oid and sid based https!
                 'other_service.http(s)://jupyterhost-url-or-ip"'
                 sys.exit(1)
             name, host = name_hosts[0], name_hosts[1]
+            try:
+                valid_alphanumeric(name)
+            except InputException, err:
+                print 'Error: The --jupyter_services name: %s was incorrectly ' \
+                    'formatted, only allows alphanumeric characters %s' % (name,
+                                                                           err)
             if name and host:
                 if name not in service_hosts:
                     service_hosts[name] = {'hosts': []}
@@ -1023,8 +1032,9 @@ sudo cp %(destination)s/httpd.conf %(apache_etc)s/
 sudo cp %(destination)s/ports.conf %(apache_etc)s/
 sudo cp %(destination)s/envvars %(apache_etc)s/
 
-If jupyter is enabled, the following generated configuration files should be 
-copied as follows,
+If jupyter is enabled, the following configuration directory must be created
+ and subsequent configuration files copied as follows,
+sudo mkdir -p %(apache_etc)s/conf.extras.d
 sudo cp %(destination)s/MiG-jupyter-def.conf %(apache_etc)s/conf.extras.d
 sudo cp %(destination)s/MiG-jupyter-openid.conf %(apache_etc)s/conf.extras.d
 sudo cp %(destination)s/MiG-jupyter-proxy.conf %(apache_etc)s/conf.extras.d
@@ -1410,7 +1420,7 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
     print 'sudo cp -f -d %s %s/' % (apache_httpd_conf, apache_dir)
     print 'sudo cp -f -d %s %s/' % (apache_ports_conf, apache_dir)
     print 'sudo cp -f -d %s %s/conf.d/' % (apache_mig_conf, apache_dir)
-    # TODO, update to new jupyter apache configurations
+    print 'sudo mkdir -p %s/conf.extras.d' % (apache_dir)
     print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_def, apache_dir)
     print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_openid,
                                                   apache_dir)

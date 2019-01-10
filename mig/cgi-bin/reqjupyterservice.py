@@ -3,8 +3,8 @@
 #
 # --- BEGIN_HEADER ---
 #
-# resadmin - Resource administration front end
-# Copyright (C) 2003-2009  The MiG Project lead by Brian Vinter
+# reqjupyterservice - Redirect the user to a backend jupyter service host
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #

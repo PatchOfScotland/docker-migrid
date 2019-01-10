@@ -4,8 +4,8 @@
 #
 # --- BEGIN_HEADER ---
 #
-# jupyter - Launch an interactive Jupyter session
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# reqjupyterservice - Redirect the user to a backend jupyter service host
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #

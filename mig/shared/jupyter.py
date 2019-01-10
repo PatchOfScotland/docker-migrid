@@ -3,8 +3,8 @@
 #
 # --- BEGIN_HEADER ---
 #
-# jobfeasibility - capability of the submitted job to be executed
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# jupyter - Helper functions for the jupyter service
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -44,11 +44,11 @@ def gen_balancer_proxy_template(url, define, name, member_placeholder,
      in websocket balancer member defitions.
     """
 
-    assert isinstance(url, str)
-    assert isinstance(define, str)
-    assert isinstance(name, str)
-    assert isinstance(member_placeholder, str)
-    assert isinstance(ws_member_placeholder, str)
+    assert isinstance(url, basestring)
+    assert isinstance(define, basestring)
+    assert isinstance(name, basestring)
+    assert isinstance(member_placeholder, basestring)
+    assert isinstance(ws_member_placeholder, basestring)
 
     fill_helpers = {
         'url': url,
@@ -95,8 +95,8 @@ def gen_openid_template(url, define):
     define: The name of the apache variable containing the 'url' value.
     """
 
-    assert isinstance(url, str)
-    assert isinstance(define, str)
+    assert isinstance(url, basestring)
+    assert isinstance(define, basestring)
 
     fill_helpers = {
         'url': url,
@@ -124,8 +124,8 @@ def gen_rewrite_template(url, define):
     define: The name of the apache variable containing the 'url' value.
     """
 
-    assert isinstance(url, str)
-    assert isinstance(define, str)
+    assert isinstance(url, basestring)
+    assert isinstance(define, basestring)
 
     fill_helpers = {
         'url': url,
