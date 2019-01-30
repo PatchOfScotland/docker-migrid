@@ -28,8 +28,8 @@
 """ Jupyter service helper functions """
 
 
-def gen_balancer_proxy_template(url, define, name, member_placeholder,
-                                ws_member_placeholder):
+def gen_balancer_proxy_template(url, define, name, member_hosts,
+                                ws_member_hosts):
     """ Generates an apache proxy balancer configuration section template
      for a particular jupyter service. Relies on the
      https://httpd.apache.org/docs/2.4/mod/mod_proxy_balancer.html module to
@@ -47,30 +47,36 @@ def gen_balancer_proxy_template(url, define, name, member_placeholder,
     assert isinstance(url, basestring)
     assert isinstance(define, basestring)
     assert isinstance(name, basestring)
-    assert isinstance(member_placeholder, basestring)
-    assert isinstance(ws_member_placeholder, basestring)
+    assert isinstance(member_hosts, list)
+    assert isinstance(ws_member_hosts, list)
 
     fill_helpers = {
         'url': url,
         'define': define,
         'name': name,
         'route_cookie': name.upper() + "_ROUTE_ID",
-        'member_placeholder': member_placeholder,
-        'ws_member_placeholder': ws_member_placeholder,
         'balancer_worker_env': '.%{BALANCER_WORKER_ROUTE}e',
-        'remote_user_env': '%{PROXY_USER}e'
+        'remote_user_env': '%{PROXY_USER}e',
+        'hosts': '',
+        'ws_hosts': ''
     }
+
+    for host in member_hosts:
+        fill_helpers['hosts'] += ''.join(['__JUPYTER_COMMENTED__         ', host])
+
+    for ws_host in ws_member_hosts:
+        fill_helpers['ws_hosts'] += ''.join(['__JUPYTER_COMMENTED__         ', ws_host])
 
     template = """
 __JUPYTER_COMMENTED__ <IfDefine %(define)s>
 __JUPYTER_COMMENTED__     Header add Set-Cookie "%(route_cookie)s=%(balancer_worker_env)s; path=%(url)s" env=BALANCER_ROUTE_CHANGED
 __JUPYTER_COMMENTED__     <Proxy balancer://%(name)s_hosts>
-__JUPYTER_COMMENTED__         %(member_placeholder)s
+%(hosts)s
 __JUPYTER_COMMENTED__         ProxySet stickysession=%(route_cookie)s
 __JUPYTER_COMMENTED__     </Proxy>
 __JUPYTER_COMMENTED__     # Websocket cluster
 __JUPYTER_COMMENTED__     <Proxy balancer://ws_%(name)s_hosts>
-__JUPYTER_COMMENTED__         %(ws_member_placeholder)s
+%(ws_hosts)s
 __JUPYTER_COMMENTED__         ProxySet stickysession=%(route_cookie)s
 __JUPYTER_COMMENTED__     </Proxy>
 __JUPYTER_COMMENTED__     <Location %(url)s>
@@ -85,7 +91,6 @@ __JUPYTER_COMMENTED__         ProxyPassReverse    balancer://ws_%(name)s_hosts
 __JUPYTER_COMMENTED__     </LocationMatch>
 __JUPYTER_COMMENTED__ </IfDefine>""" % fill_helpers
     return template
-
 
 def gen_openid_template(url, define):
     """ Generates an openid apache configuration section template

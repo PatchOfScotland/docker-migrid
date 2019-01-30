@@ -5,9 +5,6 @@ services:
     image: ruudud/devdns
     container_name: devdns
     ports: ["53:53/udp"]
-    networks:
-      default:
-        ipv4_address: 10.0.0.2
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -18,7 +15,6 @@ services:
     container_name: migrid
     environment:
       TZ: Europe/Copenhagen
-    dns: 10.0.0.2
     depends_on:
       - devdns
     networks:
@@ -48,7 +44,6 @@ services:
   nginx-proxy:
     image: jwilder/nginx-proxy
     container_name: nginx-proxy
-    dns: 10.0.0.2
     depends_on:
       - migrid
       - dag
@@ -68,7 +63,6 @@ services:
   dag:
     image: nielsbohr/jupyterhub:latest
     container_name: dag
-    dns: 10.0.0.2
     depends_on:
       - devdns
     environment:
@@ -81,7 +75,6 @@ services:
   modi:
     image: nielsbohr/jupyterhub:latest
     container_name: modi
-    dns: 10.0.0.2
     depends_on:
       - devdns
     environment:
@@ -91,14 +84,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:rw
     command: jupyterhub -f /srv/jupyterhub/jupyter_config.py
   
-networks:
-  default:
-    driver: overlay
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.0.0.0/24
-
 volumes:
   certs:
     driver_opts:

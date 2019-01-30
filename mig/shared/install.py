@@ -290,6 +290,11 @@ def generate_confs(
     user_dict['__SID_FQDN__'] = sid_fqdn
     user_dict['__IO_FQDN__'] = io_fqdn
     user_dict['__JUPYTER_SERVICES__'] = jupyter_services
+    user_dict['__JUPYTER_DEFS__'] = ''
+    user_dict['__JUPYTER_OPENIDS__'] = ''
+    user_dict['__JUPYTER_REWRITES__'] = ''
+    user_dict['__JUPYTER_PROXIES__'] = '' 
+    user_dict['__JUPYTER_SECTIONS__'] = ''
     user_dict['__USER__'] = user
     user_dict['__GROUP__'] = group
     user_dict['__PUBLIC_PORT__'] = str(public_port)
@@ -539,15 +544,9 @@ cert, oid and sid based https!
         # Jupyter requires websockets proxy
         user_dict['__WEBSOCKETS_COMMENTED__'] = ''
 
-        # TODO, switch to __JUPYTER__SECTIONS__ format
-        # prob needs double variable expansion
-        # Dynamic apache configuration insert_template lists
-        jupyter_def_inserts = {'JupyterDefinitionsPlaceholder': []}
-        jupyter_openid_inserts = {'JupyterOpenIDPlaceholder': []}
-        jupyter_rewrite_inserts = {'JupyterRewritePlaceholder': []}
-        jupyter_proxy_setup = {'JupyterProxyPlaceholder': []}
-        jupyter_proxy_inserts = {}
-        jupyter_config_inserts = {'JupyterSectionsPlaceholder': []}
+        # Dynamic apache configuration replacement lists
+        jupyter_sections, jupyter_proxies, jupyter_defs, \
+         jupyter_openids, jupyter_rewrites = [], [], [], [], []
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
         service_hosts = {}
@@ -580,10 +579,8 @@ cert, oid and sid based https!
             def_name = '%s_URL' % u_name
             def_value_name = '__%s_URL__' % u_name
             new_def = "%s %s %s\n" % (if_def, def_name, def_value_name)
-            if new_def not in jupyter_def_inserts[
-                    'JupyterDefinitionsPlaceholder']:
-                jupyter_def_inserts['JupyterDefinitionsPlaceholder']\
-                    .append(new_def)
+            if new_def not in jupyter_defs:
+                jupyter_defs.append(new_def)
 
             # Prepare MiG conf template for jupyter sections
             section_header = '[__JUPYTER_%s__]\n' % u_name
@@ -591,10 +588,8 @@ cert, oid and sid based https!
             section_hosts = 'service_hosts=__JUPYTER_%s_HOSTS__\n' % name
 
             for section_item in (section_header, section_name, section_hosts):
-                if section_item not in jupyter_config_inserts[
-                        'JupyterSectionsPlaceholder']:
-                    jupyter_config_inserts['JupyterSectionsPlaceholder']\
-                        .append(section_item)
+                if section_item not in jupyter_sections:
+                    jupyter_sections.append(section_item)
 
             url = '/' + name
             user_values = {
@@ -610,29 +605,15 @@ cert, oid and sid based https!
                 if u_k not in user_dict:
                     user_dict[u_k] = u_v
 
-            # Get proxy template and append to template conf
-            member_placeholder = "# %sPlaceholder" % u_name
-            ws_member_placeholder = "# WS%sPlaceholder" % u_name
-            proxy_template = gen_balancer_proxy_template(url, def_name, name,
-                                                         member_placeholder,
-                                                         ws_member_placeholder)
-            jupyter_proxy_setup['JupyterProxyPlaceholder'].append(
-                proxy_template)
-            jupyter_proxy_inserts[member_placeholder] = []
-            jupyter_proxy_inserts[ws_member_placeholder] = []
-
             # Setup apache openid template
             openid_template = gen_openid_template(url, def_name)
-            jupyter_openid_inserts['JupyterOpenIDPlaceholder'].append(
-                openid_template
-            )
+            jupyter_openids.append(openid_template)
 
             # Setup apache rewrite template
             rewrite_template = gen_rewrite_template(url, def_name)
-            jupyter_rewrite_inserts['JupyterRewritePlaceholder'].append(
-                rewrite_template
-            )
+            jupyter_rewrites.append(rewrite_template)
 
+            hosts, ws_hosts = [], []
             # Populate apache confs with hosts definitions and balancer members
             for i_h, host in enumerate(values['hosts']):
                 name_index = '%s_%s' % (u_name, i_h)
@@ -640,11 +621,8 @@ cert, oid and sid based https!
                     "${JUPYTER_%s}" % name_index, i_h)
                 ws_member = member.replace("${JUPYTER_%s}" % name_index,
                                            "${WS_JUPYTER_%s}" % name_index)
-                member_def = "__JUPYTER_COMMENTED__        " + member
-                ws_member_def = "__JUPYTER_COMMENTED__        " + ws_member
-
-                jupyter_proxy_inserts[member_placeholder].append(member_def)
-                jupyter_proxy_inserts[ws_member_placeholder].append(ws_member_def)
+                hosts.append(member)
+                ws_hosts.append(ws_member)
 
                 member_helper = "__IFDEF_JUPYTER_%s__ " \
                                 "JUPYTER_%s __JUPYTER_%s__\n" % (
@@ -652,10 +630,7 @@ cert, oid and sid based https!
                 ws_member_helper = "__IFDEF_WS_JUPYTER_%s__ WS_JUPYTER_%s "\
                     "__WS_JUPYTER_%s__\n" % (name_index, name_index, name_index)
 
-                jupyter_def_inserts['JupyterDefinitionsPlaceholder'].append(
-                    member_helper)
-                jupyter_def_inserts['JupyterDefinitionsPlaceholder'].append(
-                    ws_member_helper)
+                jupyter_defs.extend([member_helper, ws_member_helper])
 
                 ws_host = host.replace(
                     "https://", "wss://").replace("http://", "ws://")
@@ -678,25 +653,16 @@ cert, oid and sid based https!
                     else:
                         user_dict['__JUPYTER_%s__' % name_index] += ":80"
                         user_dict['__WS_JUPYTER_%s__' % name_index] += ":80"
+            
+            # Get proxy template and append to template conf
+            proxy_template = gen_balancer_proxy_template(url, def_name, name, hosts, ws_hosts)
+            jupyter_proxies.append(proxy_template)
 
-        insert_list.extend([
-            ("apache-MiG-jupyter-def-template.conf", jupyter_def_inserts),
-            ("apache-MiG-jupyter-openid-template.conf", jupyter_openid_inserts),
-            ("apache-MiG-jupyter-proxy-template.conf", jupyter_proxy_setup),
-            ("apache-MiG-jupyter-proxy-template.conf", jupyter_proxy_inserts),
-            ("apache-MiG-jupyter-rewrite-template.conf", jupyter_rewrite_inserts),
-            ("MiGserver-template.conf", jupyter_config_inserts)
-        ])
-
-        cleanup_list.extend([
-            ("apache-MiG-jupyter-def-template.conf", "__IFDEF"),
-            ("apache-MiG-jupyter-proxy-template.conf", "__JUPYTER_COMMENTED__"),
-            ("apache-MiG-jupyter-openid-template.conf", "__JUPYTER_COMMENTED__"),
-            ("apache-MiG-jupyter-rewrite-template.conf", "__JUPYTER_COMMENTED__"),
-            ("MiGserver-template.conf", "[__JUPYTER_"),
-            ("MiGserver-template.conf", "service_name=__JUPYTER_"),
-            ("MiGserver-template.conf", "service_hosts=__JUPYTER_")
-        ])
+        user_dict['__JUPYTER_DEFS__'] = ''.join(jupyter_defs)
+        user_dict['__JUPYTER_OPENIDS__'] = '\n'.join(jupyter_openids)
+        user_dict['__JUPYTER_REWRITES__'] = '\n'.join(jupyter_rewrites)
+        user_dict['__JUPYTER_PROXIES__'] = '\n'.join(jupyter_proxies)
+        user_dict['__JUPYTER_SECTIONS__'] = '\n'.join(jupyter_sections)
 
     else:
         user_dict['__JUPYTER_COMMENTED__'] = '#'

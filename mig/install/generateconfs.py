@@ -62,6 +62,7 @@ if '__main__' == __name__:
         'sid_fqdn',
         'io_fqdn',
         'jupyter_services',
+        'jupyter_sections',
         'user',
         'group',
         'apache_version',

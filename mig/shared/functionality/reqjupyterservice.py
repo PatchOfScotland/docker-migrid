@@ -99,6 +99,16 @@ def mig_to_mount_adapt(mig):
     }
     return mount
 
+def mig_to_user_adapt(mig):
+    """
+    :param mig: expects a dictionary containing a USER_CERT key that defines
+    the users unique x509 certificate.
+    :return: a dictionary that is ready to send to a jupyterhub host
+    """
+    user = {
+        'USERID': mig['USER_CERT']
+    }
+    return user
 
 def remove_jupyter_mount(jupyter_mount_path, configuration):
     """
@@ -400,15 +410,21 @@ def main(client_id, user_arguments_dict):
     # service, pass most recent mount information
     if active_mount is not None:
         mount_dict = mig_to_mount_adapt(active_mount['state'])
-        logger.debug("Existing keys %s", mount_dict)
+        user_dict = mig_to_user_adapt(active_mount['state'])
+        logger.debug("Existing header values, Mount: %s User: %s",
+                     (mount_dict, user_dict))
         auth_mount_header = {'Remote-User': remote_user, 'Mount': str(
             mount_dict)}
+        user_header = {'Remote-User': remote_user,
+                       'User-ID': str(user_dict)}
 
         session = requests.session()
         # Authenticate
         session.get(url_auth, headers=auth_mount_header)
         # Provide the active homedrive mount information
         session.post(url_data, headers=auth_mount_header)
+        # Provide the active userid
+        session.post(url_data, headers=user_header)
 
         # Redirect client to jupyterhub
         return jupyter_host(configuration, output_objects, remote_user, url_home)
@@ -457,11 +473,15 @@ def main(client_id, user_arguments_dict):
 
     # Only post the required keys, adapt to API expectations
     mount_dict = mig_to_mount_adapt(jupyter_dict)
+    user_dict = mig_to_user_adapt(jupyter_dict)
     logger.debug("User: %s Mount header: %s", client_id, mount_dict)
+    logger.debug("User: %s User-ID header: %s", client_id, user_dict)
 
     # Auth and pass a new set of valid mount keys
     auth_mount_header = {'Remote-User': remote_user,
                          'Mount': str(mount_dict)}
+    user_header = {'Remote-User': remote_user,
+                   'User-ID': str(user_dict)}
 
     # First login
     session = requests.session()
