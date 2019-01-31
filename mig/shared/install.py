@@ -546,7 +546,7 @@ cert, oid and sid based https!
 
         # Dynamic apache configuration replacement lists
         jupyter_sections, jupyter_proxies, jupyter_defs, \
-         jupyter_openids, jupyter_rewrites = [], [], [], [], []
+             jupyter_openids, jupyter_rewrites = [], [], [], [], []
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
         service_hosts = {}
@@ -575,10 +575,11 @@ cert, oid and sid based https!
         for name, values in service_hosts.items():
             # Service definitions
             u_name = name.upper()
-            if_def = '__IFDEF_%s_URL__' % u_name
+            url = '/' + name
+            definition = 'Define'
             def_name = '%s_URL' % u_name
-            def_value_name = '__%s_URL__' % u_name
-            new_def = "%s %s %s\n" % (if_def, def_name, def_value_name)
+            def_value = url
+            new_def = "%s %s %s\n" % (definition, def_name, def_value)
             if new_def not in jupyter_defs:
                 jupyter_defs.append(new_def)
 
@@ -591,10 +592,7 @@ cert, oid and sid based https!
                 if section_item not in jupyter_sections:
                     jupyter_sections.append(section_item)
 
-            url = '/' + name
             user_values = {
-                if_def: 'Define',
-                def_value_name: url,
                 '__JUPYTER_%s__' % u_name: 'JUPYTER_%s' % u_name,
                 '__JUPYTER_%s_NAME__' % name: name,
                 '__JUPYTER_%s_HOSTS__' % name: ' '.join(values['hosts'])
@@ -624,38 +622,25 @@ cert, oid and sid based https!
                 hosts.append(member)
                 ws_hosts.append(ws_member)
 
-                member_helper = "__IFDEF_JUPYTER_%s__ " \
-                                "JUPYTER_%s __JUPYTER_%s__\n" % (
-                                    name_index, name_index, name_index)
-                ws_member_helper = "__IFDEF_WS_JUPYTER_%s__ WS_JUPYTER_%s "\
-                    "__WS_JUPYTER_%s__\n" % (name_index, name_index, name_index)
-
-                jupyter_defs.extend([member_helper, ws_member_helper])
-
                 ws_host = host.replace(
                     "https://", "wss://").replace("http://", "ws://")
-                user_values = {
-                    '__IFDEF_JUPYTER_%s__' % name_index: 'Define',
-                    '__IFDEF_WS_JUPYTER_%s__' % name_index: 'Define',
-                    '__JUPYTER_%s__' % name_index: host,
-                    '__WS_JUPYTER_%s__' % name_index: ws_host
-                }
-
-                for u_k, u_v in user_values.items():
-                    if u_k not in user_dict:
-                        user_dict[u_k] = u_v
+                member_def = "Define JUPYTER_%s %s" % (name_index, host)
+                ws_member_def = "Define WS_JUPYTER_%s %s" % (name_index,
+                                                             ws_host)
 
                 # No user supplied port, assign based on url prefix
                 if len(host.split(":")) < 3:
                     if host.startswith("https://"):
-                        user_dict['__JUPYTER_%s__' % name_index] += ":443"
-                        user_dict['__WS_JUPYTER_%s__' % name_index] += ":443"
+                        member_def += ":443\n"
+                        ws_member_def += ":443\n"
                     else:
-                        user_dict['__JUPYTER_%s__' % name_index] += ":80"
-                        user_dict['__WS_JUPYTER_%s__' % name_index] += ":80"
-            
+                        member_def += ":80\n"
+                        ws_member_def += ":80\n"
+
+                jupyter_defs.extend([member_def, ws_member_def])
             # Get proxy template and append to template conf
-            proxy_template = gen_balancer_proxy_template(url, def_name, name, hosts, ws_hosts)
+            proxy_template = gen_balancer_proxy_template(url, def_name, name,
+                                                         hosts, ws_hosts)
             jupyter_proxies.append(proxy_template)
 
         user_dict['__JUPYTER_DEFS__'] = ''.join(jupyter_defs)

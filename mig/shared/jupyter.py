@@ -62,34 +62,34 @@ def gen_balancer_proxy_template(url, define, name, member_hosts,
     }
 
     for host in member_hosts:
-        fill_helpers['hosts'] += ''.join(['__JUPYTER_COMMENTED__         ', host])
+        fill_helpers['hosts'] += ''.join(['        ', host])
 
     for ws_host in ws_member_hosts:
-        fill_helpers['ws_hosts'] += ''.join(['__JUPYTER_COMMENTED__         ', ws_host])
+        fill_helpers['ws_hosts'] += ''.join(['        ', ws_host])
 
     template = """
-__JUPYTER_COMMENTED__ <IfDefine %(define)s>
-__JUPYTER_COMMENTED__     Header add Set-Cookie "%(route_cookie)s=%(balancer_worker_env)s; path=%(url)s" env=BALANCER_ROUTE_CHANGED
-__JUPYTER_COMMENTED__     <Proxy balancer://%(name)s_hosts>
+<IfDefine %(define)s>
+    Header add Set-Cookie "%(route_cookie)s=%(balancer_worker_env)s; path=%(url)s" env=BALANCER_ROUTE_CHANGED
+    <Proxy balancer://%(name)s_hosts>
 %(hosts)s
-__JUPYTER_COMMENTED__         ProxySet stickysession=%(route_cookie)s
-__JUPYTER_COMMENTED__     </Proxy>
-__JUPYTER_COMMENTED__     # Websocket cluster
-__JUPYTER_COMMENTED__     <Proxy balancer://ws_%(name)s_hosts>
+        ProxySet stickysession=%(route_cookie)s
+    </Proxy>
+    # Websocket cluster
+    <Proxy balancer://ws_%(name)s_hosts>
 %(ws_hosts)s
-__JUPYTER_COMMENTED__         ProxySet stickysession=%(route_cookie)s
-__JUPYTER_COMMENTED__     </Proxy>
-__JUPYTER_COMMENTED__     <Location %(url)s>
-__JUPYTER_COMMENTED__         ProxyPreserveHost on
-__JUPYTER_COMMENTED__         ProxyPass balancer://%(name)s_hosts%(url)s
-__JUPYTER_COMMENTED__         ProxyPassReverse balancer://%(name)s_hosts%(url)s
-__JUPYTER_COMMENTED__         RequestHeader set Remote-User %(remote_user_env)s
-__JUPYTER_COMMENTED__     </Location>
-__JUPYTER_COMMENTED__     <LocationMatch "%(url)s/(user/[^/]+)/(api/kernels/[^/]+/channels|terminals/websocket)/?">
-__JUPYTER_COMMENTED__         ProxyPass   balancer://ws_%(name)s_hosts
-__JUPYTER_COMMENTED__         ProxyPassReverse    balancer://ws_%(name)s_hosts
-__JUPYTER_COMMENTED__     </LocationMatch>
-__JUPYTER_COMMENTED__ </IfDefine>""" % fill_helpers
+        ProxySet stickysession=%(route_cookie)s
+    </Proxy>
+    <Location %(url)s>
+        ProxyPreserveHost on
+        ProxyPass balancer://%(name)s_hosts%(url)s
+        ProxyPassReverse balancer://%(name)s_hosts%(url)s
+        RequestHeader set Remote-User %(remote_user_env)s
+    </Location>
+    <LocationMatch "%(url)s/(user/[^/]+)/(api/kernels/[^/]+/channels|terminals/websocket)/?">
+        ProxyPass   balancer://ws_%(name)s_hosts
+        ProxyPassReverse    balancer://ws_%(name)s_hosts
+    </LocationMatch>
+</IfDefine>""" % fill_helpers
     return template
 
 def gen_openid_template(url, define):
@@ -109,14 +109,14 @@ def gen_openid_template(url, define):
     }
 
     template = """
-__JUPYTER_COMMENTED__ <IfDefine %(define)s>
-__JUPYTER_COMMENTED__     <Location %(url)s>
-__JUPYTER_COMMENTED__         # Pass SSL variables on
-__JUPYTER_COMMENTED__         SSLOptions +StdEnvVars
-__JUPYTER_COMMENTED__         AuthType OpenID
-__JUPYTER_COMMENTED__         require valid-user
-__JUPYTER_COMMENTED__     </Location>
-__JUPYTER_COMMENTED__ </IfDefine>
+<IfDefine %(define)s>
+    <Location %(url)s>
+        # Pass SSL variables on
+        SSLOptions +StdEnvVars
+        AuthType OpenID
+        require valid-user
+    </Location>
+</IfDefine>
 """ % fill_helpers
     return template
 
@@ -140,13 +140,13 @@ def gen_rewrite_template(url, define):
     }
 
     template = """
-__JUPYTER_COMMENTED__ <IfDefine %(define)s>
-__JUPYTER_COMMENTED__     <Location %(url)s>
-__JUPYTER_COMMENTED__         RewriteCond %(auth_phase_user)s !^$
-__JUPYTER_COMMENTED__         RewriteRule .* - [E=PROXY_USER:%(auth_phase_user)s,NS]
-__JUPYTER_COMMENTED__     </Location>
-__JUPYTER_COMMENTED__     RewriteCond %(uri)s ^%(url)s
-__JUPYTER_COMMENTED__     RewriteRule ^ - [L]
-__JUPYTER_COMMENTED__ </IfDefine>
+<IfDefine %(define)s>
+    <Location %(url)s>
+        RewriteCond %(auth_phase_user)s !^$
+        RewriteRule .* - [E=PROXY_USER:%(auth_phase_user)s,NS]
+    </Location>
+    RewriteCond %(uri)s ^%(url)s
+    RewriteRule ^ - [L]
+</IfDefine>
 """ % fill_helpers
     return template
