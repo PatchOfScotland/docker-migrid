@@ -43,6 +43,7 @@ import random
 import socket
 import subprocess
 import sys
+import ast
 
 from shared.defaults import default_http_port, default_https_port, \
     auth_openid_mig_db, auth_openid_ext_db, STRONG_TLS_CIPHERS, \
@@ -206,6 +207,7 @@ def generate_confs(
     sid_fqdn='localhost',
     io_fqdn='localhost',
     jupyter_services='',
+    jupyter_services_desc='{}',
     user='mig',
     group='mig',
     apache_version='2.4',
@@ -549,16 +551,29 @@ cert, oid and sid based https!
              jupyter_openids, jupyter_rewrites = [], [], [], [], []
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
+        try:
+            descs = ast.literal_eval(jupyter_services_desc)
+        except SyntaxError, err:
+            print 'Error: jupyter_services_desc ' \
+             'could not be intepreted correctly. Double check that your ' \
+             'formatting is correct, a dictionary formatted string is expected.'
+            sys.exit(1)
+
+        if not isinstance(descs, dict):
+            print 'Error: %s was incorrectly formatted,' \
+             ' expects a string formatted as a dictionary' % descs
+            sys.exit(1)
+
         service_hosts = {}
         for service in services:
             # TODO, do more checks on format
             name_hosts = service.split(".", 1)
             if len(name_hosts) != 2:
-                print 'Error: You have not correctly formattet '
-                'the jupyter_services parameter, '
-                'expects --jupyter_services="service_name.'
-                'http(s)://jupyterhost-url-or-ip '
-                'other_service.http(s)://jupyterhost-url-or-ip"'
+                print 'Error: You have not correctly formattet ' \
+                 'the jupyter_services parameter, ' \
+                 'expects --jupyter_services="service_name.' \
+                 'http(s)://jupyterhost-url-or-ip ' \
+                 'other_service.http(s)://jupyterhost-url-or-ip"'
                 sys.exit(1)
             name, host = name_hosts[0], name_hosts[1]
             try:
@@ -585,18 +600,27 @@ cert, oid and sid based https!
 
             # Prepare MiG conf template for jupyter sections
             section_header = '[__JUPYTER_%s__]\n' % u_name
-            section_name = 'service_name=__JUPYTER_%s_NAME__\n' % name
-            section_hosts = 'service_hosts=__JUPYTER_%s_HOSTS__\n' % name
+            section_name = 'service_name=__JUPYTER_%s_NAME__\n' % u_name
+            section_desc = 'service_desc=__JUPYTER_%s_DESC__\n' % u_name
+            section_hosts = 'service_hosts=__JUPYTER_%s_HOSTS__\n' % u_name
 
-            for section_item in (section_header, section_name, section_hosts):
+            for section_item in (section_header, section_name, section_desc,
+                                 section_hosts):
                 if section_item not in jupyter_sections:
                     jupyter_sections.append(section_item)
 
             user_values = {
                 '__JUPYTER_%s__' % u_name: 'JUPYTER_%s' % u_name,
-                '__JUPYTER_%s_NAME__' % name: name,
-                '__JUPYTER_%s_HOSTS__' % name: ' '.join(values['hosts'])
+                '__JUPYTER_%s_NAME__' % u_name: name,
+                '__JUPYTER_%s_HOSTS__' % u_name: ' '.join(values['hosts'])
             }
+
+            if name in descs:
+                desc_value = descs[name] + "\n"
+            else:
+                desc_value = "\n"
+
+            user_values.update({'__JUPYTER_%s_DESC__\n' % u_name: desc_value})
 
             # Update user_dict with definition values
             for u_k, u_v in user_values.items():
@@ -647,7 +671,7 @@ cert, oid and sid based https!
         user_dict['__JUPYTER_OPENIDS__'] = '\n'.join(jupyter_openids)
         user_dict['__JUPYTER_REWRITES__'] = '\n'.join(jupyter_rewrites)
         user_dict['__JUPYTER_PROXIES__'] = '\n'.join(jupyter_proxies)
-        user_dict['__JUPYTER_SECTIONS__'] = '\n'.join(jupyter_sections)
+        user_dict['__JUPYTER_SECTIONS__'] = ''.join(jupyter_sections)
 
     else:
         user_dict['__JUPYTER_COMMENTED__'] = '#'
