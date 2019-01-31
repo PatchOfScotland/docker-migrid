@@ -78,11 +78,18 @@ def main(client_id, user_arguments_dict):
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
     services = [{'object_type': 'service',
-                 'name': options['service_name']}
+                 'name': options['service_name'],
+                 'description': options['service_desc']}
                 for service, options in configuration.jupyter_services.items()]
 
     # Show jupyter services menu
     (add_import, add_init, add_ready) = man_base_js(configuration, [])
+
+    add_ready += '''
+        /* NOTE: requires managers CSS fix for proper tab bar height */
+        $(".jupyter-tabs").tabs();
+        $("#logarea").scrollTop($("#logarea")[0].scrollHeight);
+    '''
 
     title_entry = find_entry(output_objects, 'title')
     title_entry['style'] = themed_styles(configuration)
@@ -91,6 +98,46 @@ def main(client_id, user_arguments_dict):
                                              add_init, add_ready)
     output_objects.append({'object_type': 'header',
                            'text': 'Select a Jupyter Service'})
-    output_objects.append({'object_type': 'services',
-                           'services': services})
+
+    fill_helpers = {
+        'jupyter_tabs': ''.join(['<li><a href="#%s-tab">%s</a></li>' %
+                                 (service['name'], service['name'])
+                                 for service in services])
+    }
+
+    output_objects.append({'object_type': 'html_form', 'text': '''
+    <div id="wrap-tabs" class="jupyter-tabs">
+    <ul>
+    %(jupyter_tabs)s
+    </ul>
+    ''' % fill_helpers})
+
+    for service in services:
+        output_objects.append({'object_type': 'html_form',
+                               'text': '''
+        <div id="%s-tab">
+        ''' % (service['name'])})
+        output_objects.append({'object_type': 'sectionheader',
+                               'text': 'Service Description'})
+        output_objects.append({'object_type': 'html_form', 'text': '''
+        <div class="jupyter-description">
+        <p>%s</p>
+        </div>
+        ''' % service['description']})
+        output_objects.append({'object_type': 'html_form', 'text': '''
+        <br/>
+        '''})
+
+        output_service = {'object_type': 'service',
+                          'name': "Redirect me to %s" % service['name'],
+                          'targetlink': 'reqjupyterservice.py?service=%s'
+                          % service['name']}
+        output_objects.append(output_service)
+        output_objects.append({'object_type': 'html_form', 'text': '''
+        </div>
+        '''})
+    output_objects.append({'object_type': 'html_form', 'text': '''
+    </div>
+    '''})
+
     return (output_objects, returnvalues.OK)

@@ -325,7 +325,11 @@ def main(client_id, user_arguments_dict):
         logger.error("No active jupyterhub host could be found")
         output_objects.append(
             {'object_type': 'error_text', 'text':
-             'Failed to establish connection to the %s Jupyter service' % service['service_name']})
+             'Failed to establish connection to the %s Jupyter service' %
+             service['service_name']})
+        output_objects.append({'object_type': 'link',
+                               'destination': 'jupyter.py',
+                               'text': 'Back to Jupyter services overview'})
         return (output_objects, returnvalues.SYSTEM_ERROR)
 
     username = unescape(os.environ.get('REMOTE_USER', '')).strip()

@@ -282,7 +282,7 @@ user_stats = {'object_type': 'user_stats', 'required': ['disk', 'jobs',
               'resources', 'certificate'], 'optional': []}
 openid_status = {'object_type': 'openid_status', 'required': ['server',
                  'status', 'error'], 'optional': []}
-service = {'object_type': 'service', 'required': ['name'],
+service = {'object_type': 'service', 'required': ['name', 'targetlink'],
            'optional': []}
 services = {'object_type': 'services',
             'required_list': [('services', 'service')]}

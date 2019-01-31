@@ -2281,15 +2281,17 @@ Reload thread</a></p>''' % (i['vgrid_name'], i['thread']))
                 lines.append('<h2>Status</h2><p>%s</p>' % i['status'])
             if i.get('error', None):
                 lines.append('<h2>Error</h2><p>%s</p>' % i['error'])
+        elif i['object_type'] == 'service':
+            service = i
+            lines.append('''
+            <a class='ui-button' id='service' href='%s'>%s</a>
+            ''' % (service['targetlink'], service['name']))
         elif i['object_type'] == 'services':
             services = i['services']
-            lines.append('<form method="get" action="reqjupyterservice.py">')
             for service in services:
-                # TODO, switch to ui-button
                 lines.append('''
-                <input class="btn" type="submit" name="service" value=%s>
-                ''' % service['name'])
-            lines.append('</form>')
+                <a class='ui-button' id='service' href='%s'>%s</a>
+                ''' % (service['targetlink'], service['name']))
         elif i['object_type'] == 'script_status':
             status_line = i.get('text')
         elif i['object_type'] == 'timing_info':
