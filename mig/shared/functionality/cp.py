@@ -4,7 +4,7 @@
 # --- BEGIN_HEADER ---
 #
 # cp - copy file between user home locations
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -33,13 +33,14 @@ import shutil
 
 import shared.returnvalues as returnvalues
 from shared.base import client_id_dir
-from shared.fileio import check_write_access, check_empty_dir
+from shared.fileio import check_write_access, check_empty_dir, makedirs_rec
+from shared.freezefunctions import is_frozen_archive
 from shared.functional import validate_input_and_cert, REJECT_UNSET
 from shared.handlers import safe_handler, get_csrf_limit
-from shared.gdp import get_project_from_client_id, project_log
 from shared.init import initialize_main_variables
 from shared.parseflags import verbose, recursive, force
 from shared.sharelinks import extract_mode_id
+from shared.userio import GDPIOLogError, gdp_iolog
 from shared.validstring import valid_user_path
 
 
@@ -52,6 +53,7 @@ def signature():
         'dst': REJECT_UNSET,
         'iosessionid': [''],
         'share_id': [''],
+        'freeze_id': [''],
     }
     return ['', defaults]
 
@@ -82,6 +84,7 @@ def main(client_id, user_arguments_dict, environ=None):
     dst = accepted['dst'][-1]
     iosessionid = accepted['iosessionid'][-1]
     share_id = accepted['share_id'][-1]
+    freeze_id = accepted['freeze_id'][-1]
 
     if not safe_handler(configuration, 'post', op_name, client_id,
                         get_csrf_limit(configuration), accepted):
@@ -136,10 +139,30 @@ supported for directory sharelinks!"""})
             return (output_objects, returnvalues.CLIENT_ERROR)
         elif not os.path.isdir(src_base):
             logger.error('%s called import with non-existant sharelink: %s'
-                         % (op_name, share_id))
+                         % (client_id, share_id))
             output_objects.append(
                 {'object_type': 'error_text', 'text': 'No such sharelink: %s'
                  % share_id})
+            return (output_objects, returnvalues.CLIENT_ERROR)
+
+    # Archive import if freeze_id is given - change to archive as src base
+    if freeze_id:
+        if not is_frozen_archive(client_id, freeze_id, configuration):
+            logger.error('%s called with invalid freeze_id: %s' %
+                         (op_name, freeze_id))
+            output_objects.append(
+                {'object_type': 'error_text', 'text':
+                 'Invalid archive ID: %s' % freeze_id})
+            return (output_objects, returnvalues.CLIENT_ERROR)
+        target_dir = os.path.join(client_dir, freeze_id)
+        src_base = os.path.abspath(os.path.join(configuration.freeze_home,
+                                                target_dir)) + os.sep
+        if not os.path.isdir(src_base):
+            logger.error('%s called import with non-existant archive: %s'
+                         % (client_id, freeze_id))
+            output_objects.append(
+                {'object_type': 'error_text', 'text': 'No such archive: %s'
+                 % freeze_id})
             return (output_objects, returnvalues.CLIENT_ERROR)
 
     status = returnvalues.OK
@@ -183,6 +206,13 @@ supported for directory sharelinks!"""})
             {'object_type': 'error_text', 'text':
              "Invalid destination (%s expands to an illegal path)" % dst})
         return (output_objects, returnvalues.CLIENT_ERROR)
+    # We must make sure target dir exists if called in import X mode
+    if (share_id or freeze_id) and not makedirs_rec(abs_dest, configuration):
+        logger.error('could not create import destination dir: %s' % abs_dest)
+        output_objects.append(
+            {'object_type': 'error_text', 'text':
+             'cannot import to "%s" : file in the way?' % relative_dest})
+        return (output_objects, returnvalues.SYSTEM_ERROR)
     if not check_write_access(abs_dest, parent_dir=True):
         logger.warning('%s called without write access: %s'
                        % (op_name, abs_dest))
@@ -201,6 +231,17 @@ will potentially overwrite existing files with the sharelink version. If you
 really want that, please try import again and select the overwrite box to
 confirm it. You may want to back up any important data from %s first, however.
 """ % (share_id, relative_dest, relative_dest)})
+        return (output_objects, returnvalues.CLIENT_ERROR)
+    if freeze_id and not force(flags) and not check_empty_dir(abs_dest):
+        logger.warning('%s called %s archive import with non-empty dst: %s'
+                       % (op_name, freeze_id, abs_dest))
+        output_objects.append(
+            {'object_type': 'error_text', 'text':
+             """Importing an archive like '%s' into the non-empty '%s' folder
+will potentially overwrite existing files with the archive version. If you
+really want that, please try import again and select the overwrite box to
+confirm it. You may want to back up any important data from %s first, however.
+""" % (freeze_id, relative_dest, relative_dest)})
         return (output_objects, returnvalues.CLIENT_ERROR)
 
     for pattern in src_list:
@@ -283,23 +324,29 @@ copy entire special folders like %s shared folders!"""
                 continue
 
             try:
+                gdp_iolog(configuration,
+                          client_id,
+                          environ['REMOTE_ADDR'],
+                          'copied',
+                          [relative_path,
+                           relative_dest
+                           + "/" + os.path.basename(relative_path)])
                 if os.path.isdir(abs_path):
                     shutil.copytree(abs_path, abs_target)
                 else:
                     shutil.copy(abs_path, abs_target)
                 logger.info('%s %s %s done' % (op_name, abs_path, abs_target))
-                if configuration.site_enable_gdp:
-                    gdp_project = get_project_from_client_id(configuration,
-                                                             client_id)
-                    log_src_path = relative_path[len(gdp_project)+1:]
-                    log_dest_path = os.path.join(
-                        relative_dest[len(gdp_project)+1:],
-                        os.path.basename(relative_path))
-                    msg = "'%s' -> '%s'" % (log_src_path, log_dest_path)
-                    project_log(configuration, 'https', client_id, 'copied',
-                                msg, user_addr=environ['REMOTE_ADDR'])
-
             except Exception, exc:
+                if not isinstance(exc, GDPIOLogError):
+                    gdp_iolog(configuration,
+                              client_id,
+                              environ['REMOTE_ADDR'],
+                              'copied',
+                              [relative_path,
+                               relative_dest
+                               + "/" + os.path.basename(relative_path)],
+                              failed=True,
+                              details=exc)
                 output_objects.append(
                     {'object_type': 'error_text',
                      'text': "%s: failed on '%s' to '%s'"

@@ -1,10 +1,10 @@
-/*
-
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # --- BEGIN_HEADER ---
 #
-# static - generateconfs-made static page style settings for all pages
-# Copyright (C) 2003-2015  The MiG Project lead by Brian Vinter
+# importfreeze - back end for one-shot import of archive contents
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -25,9 +25,19 @@
 # -- END_HEADER ---
 #
 
-*/
+"""One-shot import of contents from archive"""
 
-/* Always include core styles for selected skin to get static and simple 
-   pages right even when they don't include explicit skin */
-@import url("/images/skin/idmc-basic/core.css");
+from shared.functionality.cp import main as importfreeze_main, \
+    signature as importfreeze_signature
 
+
+def main(client_id, user_arguments_dict):
+    """Main function used by front end"""
+
+    # Mimic call to cp with import freeze fields set
+    args_dict = importfreeze_signature()[1]
+    # Remove unused src and share_id fields to avoid parsing errors
+    del args_dict['src']
+    del args_dict['share_id']
+    args_dict.update(user_arguments_dict)
+    return importfreeze_main(client_id, args_dict)

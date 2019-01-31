@@ -215,12 +215,14 @@ def generate_confs(
     apache_run='/var/run',
     apache_lock='/var/lock',
     apache_log='/var/log/apache2',
+    apache_worker_procs='256',
     openssh_version='7.4',
     mig_code='/home/mig/mig',
     mig_state='/home/mig/state',
     mig_certs='/home/mig/certs',
     enable_sftp='True',
     enable_sftp_subsys='True',
+    sftp_subsys_auth_procs='10',
     enable_davs='True',
     enable_ftps='True',
     enable_wsgi='True',
@@ -315,9 +317,11 @@ def generate_confs(
     user_dict['__APACHE_RUN__'] = apache_run
     user_dict['__APACHE_LOCK__'] = apache_lock
     user_dict['__APACHE_LOG__'] = apache_log
+    user_dict['__APACHE_WORKER_PROCS__'] = apache_worker_procs
     user_dict['__OPENSSH_VERSION__'] = openssh_version
     user_dict['__ENABLE_SFTP__'] = enable_sftp
     user_dict['__ENABLE_SFTP_SUBSYS__'] = enable_sftp_subsys
+    user_dict['__SFTP_SUBSYS_AUTH_PROCS__'] = sftp_subsys_auth_procs
     user_dict['__ENABLE_DAVS__'] = enable_davs
     user_dict['__ENABLE_FTPS__'] = enable_ftps
     user_dict['__ENABLE_WSGI__'] = enable_wsgi
@@ -696,6 +700,18 @@ cert, oid and sid based https!
     else:
         user_dict['__APACHE_SUFFIX__'] = ""
 
+    # Helpers for the migstatecleanup cron job
+    user_dict['__CRON_VERBOSE_CLEANUP__'] = '1'
+    if 'migoid' in signup_methods or 'migcert' in signup_methods:
+        user_dict['__CRON_REQ_CLEANUP__'] = '1'
+    else:
+        user_dict['__CRON_REQ_CLEANUP__'] = '0'
+
+    if user_dict['__ENABLE_JOBS__'].lower() == 'true':
+        user_dict['__CRON_JOB_CLEANUP__'] = '1'
+    else:
+        user_dict['__CRON_JOB_CLEANUP__'] = '0'
+
     # Enable 2FA only if explicitly requested
     if user_dict['__ENABLE_TWOFACTOR__'].lower() == 'true':
         try:
@@ -704,8 +720,10 @@ cert, oid and sid based https!
             print "ERROR: twofactor use requested but pyotp is not installed!"
             sys.exit(1)
         user_dict['__TWOFACTOR_COMMENTED__'] = ''
+        user_dict['__CRON_TWOFACTOR_CLEANUP__'] = '1'
     else:
         user_dict['__TWOFACTOR_COMMENTED__'] = '#'
+        user_dict['__CRON_TWOFACTOR_CLEANUP__'] = '0'
 
     # Enable cracklib only if explicitly requested and installed
     if user_dict['__ENABLE_CRACKLIB__'].lower() == 'true':
@@ -950,6 +968,8 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
         ("index-template.html", "index.html"),
         ("openssh-MiG-sftp-subsys-template.conf", "sshd_config-MiG-sftp-subsys"),
         ("fail2ban-MiG-daemons-filter-template.conf", "MiG-daemons-filter.conf"),
+        ("fail2ban-MiG-daemons-handshake-filter-template.conf",
+         "MiG-daemons-handshake-filter.conf"),
         ("fail2ban-MiG-daemons-pw-crack-filter-template.conf",
          "MiG-daemons-pw-crack-filter.conf"),
         ("fail2ban-sshd-pw-crack-filter-template.conf", "sshd-pw-crack-filter.conf"),
@@ -1059,6 +1079,8 @@ password errors to prevent brute-force scans for all MiG network daemons.
 You can install them with:
 sudo cp %(destination)s/MiG-daemons-filter.conf \\
         /etc/fail2ban/filter.d/MiG-daemons.conf
+sudo cp %(destination)s/MiG-daemons-handshake-filter.conf \\
+        /etc/fail2ban/filter.d/MiG-daemons-handshake.conf
 sudo cp %(destination)s/MiG-daemons-pw-crack-filter.conf \\
         /etc/fail2ban/filter.d/MiG-daemons-pw-crack.conf
 sudo cp %(destination)s/sshd-pw-crack-filter.conf \\
@@ -1205,11 +1227,13 @@ def create_user(
     apache_run = '%s/run' % apache_dir
     apache_lock = '%s/lock' % apache_dir
     apache_log = '%s/log' % apache_dir
+    apache_worker_procs = '256'
     openssh_version = '7.4'
     cert_dir = '%s/MiG-certificates' % apache_dir
     # We don't necessarily have free ports for daemons
     enable_sftp = 'False'
     enable_sftp_subsys = 'False'
+    sftp_subsys_auth_procs = '10'
     enable_davs = 'False'
     enable_ftps = 'False'
     enable_twofactor = 'False'
@@ -1310,12 +1334,14 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
         apache_run,
         apache_lock,
         apache_log,
+        apache_worker_procs,
         openssh_version,
         mig_dir,
         state_dir,
         cert_dir,
         enable_sftp,
         enable_sftp_subsys,
+        sftp_subsys_auth_procs,
         enable_davs,
         enable_ftps,
         enable_wsgi,

@@ -190,6 +190,8 @@ download_block_size = 268435456
 wwwpublic_alias = 'public'
 public_archive_dir = 'archives'
 public_archive_index = 'published-archive.html'
+public_archive_files = 'published-files.json'
+public_archive_doi = 'published-doi.json'
 
 edit_lock_suffix = '.editor_lock__'
 edit_lock_timeout = 600
@@ -348,4 +350,4 @@ SAFE_SSH_LEGACY_MACS = "hmac-sha2-512,hmac-sha2-256"
 STRONG_SSH_LEGACY_MACS = ",".join([BEST_SSH_LEGACY_MACS, SAFE_SSH_LEGACY_MACS])
 
 # A pattern to match usernames unambiguously identifying cracking attempts
-CRACK_USERNAME_REGEX = '(root|bin|daemon|adm|admin|administrator|superadmin|lp|operator|ftp|irc|nobody|sys|pi|guest|www|www-data|mysql|postgres|oracle|mongodb|redis|hadoop|cpanel|plesk|tomcat|exim|postfix|sendmail|mailnull|postmaster|mail|uucp|news|teamspeak|git|svn|cvs|user|ftpuser|ubuntu|ubnt|supervisor|csgoserver|device|deploy|support|info|test[0-9]*|user[0-9]*|[0-9]+)'
+CRACK_USERNAME_REGEX = '(root|bin|daemon|adm|admin|administrator|superadmin|lp|operator|controller|ftp|irc|nobody|sys|pi|guest|www|www-data|mysql|postgres|oracle|mongodb|sybase|redis|hadoop|zimbra|cpanel|plesk|openhabian|tomcat|exim|postfix|sendmail|mailnull|postmaster|mail|uucp|news|teamspeak|git|svn|cvs|user|ftpuser|ubuntu|ubnt|supervisor|csgoserver|device|laboratory|deploy|support|info|test[0-9]*|user[0-9]*|[0-9]+)'

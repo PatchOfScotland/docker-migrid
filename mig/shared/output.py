@@ -4,7 +4,7 @@
 # --- BEGIN_HEADER ---
 #
 # output - general formatting of backend output objects
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -36,12 +36,13 @@ from binascii import hexlify
 import shared.returnvalues as returnvalues
 from shared.defaults import file_dest_sep
 from shared.html import get_cgi_html_header, get_cgi_html_footer, \
-     vgrid_items, html_post_helper
+    vgrid_items, html_post_helper, tablesorter_pager
 from shared.objecttypes import validate
 from shared.prettyprinttable import pprint_table
 from shared.safeinput import html_escape
 
 row_name = ('even', 'odd')
+
 
 def txt_table_if_have_keys(header, input_dict, keywordlist):
     """create txt table contents based on keys in a dictionary"""
@@ -61,8 +62,7 @@ def txt_table_if_have_keys(header, input_dict, keywordlist):
 def txt_link(obj):
     """Text format link"""
 
-    return '(Link: __%s__) -> __%s__' % (obj['destination'], obj['text'
-            ])
+    return '(Link: __%s__) -> __%s__' % (obj['destination'], obj['text'])
 
 
 def txt_cond_summary(job_cond_msg):
@@ -102,6 +102,7 @@ def txt_file_info(file_dict):
     size_pad = size.rjust(16)
     file_details = "%s %s" % (size_pad, date_pad)
     return file_details
+
 
 def txt_format(configuration, ret_val, ret_msg, out_obj):
     """Generate output in txt format"""
@@ -171,9 +172,9 @@ ___%s___
                 lines.append('No job submit status found!\n')
             else:
                 header = [['File', 'Status', 'Job ID', 'Message']]
-                lines += pprint_table(txt_table_if_have_keys(header,
-                                  submitstatuslist, ['name', 'status',
-                                                     'job_id', 'message']))
+                lines += pprint_table(txt_table_if_have_keys(
+                    header, submitstatuslist, ['name', 'status', 'job_id',
+                                               'message']))
         elif i['object_type'] == 'frozenarchives':
             frozenarchives = i['frozenarchives']
             header = [['ID', 'Name', 'Created', 'Flavor', 'Files']]
@@ -214,9 +215,11 @@ ___%s___
                 if i.get('author', '') not in ('', 'UNSET'):
                     lines.append('Author: %(author)s\n' % frozenarchive)
                 if i.get('department', '') not in ('', 'UNSET'):
-                    lines.append('Department: %(department)s\n' % frozenarchive)
+                    lines.append('Department: %(department)s\n' %
+                                 frozenarchive)
                 if i.get('organization', '') not in ('', 'UNSET'):
-                    lines.append('Organization: %(organization)s\n' % frozenarchive)
+                    lines.append('Organization: %(organization)s\n' %
+                                 frozenarchive)
                 lines.append('Description: %(description)s\n' % frozenarchive)
                 if i.get('publish', False):
                     published = 'Yes'
@@ -323,26 +326,25 @@ ___%s___
                 continue
             header = [['Job ID', 'Resubmit status', 'New job ID',
                       'Message']]
-            lines += pprint_table(txt_table_if_have_keys(header,
-                                  resubmitobjs, ['job_id',
-                                  'status', 'new_job_id', 'message']))
+            lines += pprint_table(txt_table_if_have_keys(
+                header, resubmitobjs, ['job_id', 'status', 'new_job_id',
+                                       'message']))
         elif i['object_type'] == 'changedstatusjobs':
             changedstatusjobs = i['changedstatusjobs']
             if len(changedstatusjobs) == 0:
                 continue
             header = [['Job ID', 'Old status', 'New status',
                       'Message']]
-            lines += pprint_table(txt_table_if_have_keys(header,
-                                  changedstatusjobs, ['job_id',
-                                  'oldstatus', 'newstatus', 'message']))
+            lines += pprint_table(txt_table_if_have_keys(
+                header, changedstatusjobs, ['job_id', 'oldstatus', 'newstatus',
+                                            'message']))
         elif i['object_type'] == 'saveschedulejobs':
             saveschedulejobs = i['saveschedulejobs']
             if len(saveschedulejobs) == 0:
                 continue
             header = [['Job ID', 'Message']]
-            lines += pprint_table(txt_table_if_have_keys(header,
-                                  saveschedulejobs, ['job_id', 'message'
-                                  ]))
+            lines += pprint_table(txt_table_if_have_keys(
+                header, saveschedulejobs, ['job_id', 'message']))
         elif i['object_type'] == 'checkcondjobs':
             checkcondjobs = i['checkcondjobs']
             if len(checkcondjobs) == 0:
@@ -350,10 +352,8 @@ ___%s___
             header = [['Job ID', 'Feasibility', 'Message']]
             for checkcond in checkcondjobs:
                 checkcond['cond_summary'] = txt_cond_summary(checkcond)
-            lines += pprint_table(txt_table_if_have_keys(header,
-                                  checkcondjobs, ['job_id', 'cond_summary',
-                                                  'message'
-                                  ]))
+            lines += pprint_table(txt_table_if_have_keys(
+                header, checkcondjobs, ['job_id', 'cond_summary', 'message']))
         elif i['object_type'] == 'stats':
             stats = i['stats']
             if len(stats) == 0:
@@ -438,7 +438,7 @@ ctime\t%(ctime)s
                             lines.append('Resource %s: %s\n' % (count,
                                     single_history['resource']))
                         if single_history.has_key('vgrid'):
-                            lines.append('%s %s: %s' % \
+                            lines.append('%s %s: %s' %
                                          (configuration.site_vgrid_label,
                                           count, single_history['vgrid']))
                         if single_history.has_key('failed'):
@@ -489,8 +489,8 @@ ctime\t%(ctime)s
                         if directory.has_key('long_format'):
                             if directory == dir_listing['entries'][0]:
                                 lines.append('%s:\ntotal %s\n'
-                                         % (dir_listing['relative_path'
-                                        ], len(dir_listing['entries'])))
+                                             % (dir_listing['relative_path'],
+                                                len(dir_listing['entries'])))
                         if directory.has_key('actual_dir'):
                             line += '%s ' % directory['actual_dir']
                         line += '%s\n' % directory['name']
@@ -501,7 +501,8 @@ ctime\t%(ctime)s
                             line += '%s ' % this_file['long_format']
                         line += '%s' % this_file['name']
                         if this_file.has_key('file_dest'):
-                            line += '%s%s' % (file_dest_sep, this_file['file_dest'])
+                            line += '%s%s' % (file_dest_sep,
+                                              this_file['file_dest'])
                         line += '\n'
                         lines.append(line)
         elif i['object_type'] == 'jobobj':
@@ -576,6 +577,7 @@ def html_link(obj):
                                        ' '.join(extra_params), obj['text'])
     return link
 
+
 def html_cond_summary(job_cond_msg):
     """Pretty format job feasibilty condition"""
     lines = []
@@ -583,16 +585,16 @@ def html_cond_summary(job_cond_msg):
         lines.append('No job_cond message.')
     else:
         lines.append('<table class="job_cond_verdict">')
-        lines.append('<tr><th>Job Id: %s</th></tr>' % \
+        lines.append('<tr><th>Job Id: %s</th></tr>' %
                      job_cond_msg['job_id'])
         if job_cond_msg.has_key('suggestion'):
-            lines.append('<tr><td>%s</td></tr>' % \
+            lines.append('<tr><td>%s</td></tr>' %
                          job_cond_msg['suggestion'])
         if job_cond_msg.has_key('verdict'):
             img_tag = '<img src="%s" alt="%s %s" />' % \
                       (job_cond_msg['icon'], 'Job readiness condition', 
                        job_cond_msg['color'])
-            lines.append('<tr><td>%s&nbsp;%s</td></tr>' % \
+            lines.append('<tr><td>%s&nbsp;%s</td></tr>' %
                          (img_tag, job_cond_msg['verdict']))
         if job_cond_msg.has_key('error_desc'):
             lines.append('<tr><td><dl>')
@@ -610,6 +612,7 @@ def html_cond_summary(job_cond_msg):
             lines.append('</dl></td></tr>')
         lines.append('</table>')
     return '\n'.join(lines)
+
 
 def html_table_if_have_keys(dictionary, keywordlist):
     """create html table contents based on keys in a dictionary"""
@@ -642,10 +645,10 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
         if i['object_type'] == 'start':
             pass
         elif i['object_type'] == 'error_text':
-            lines.append('<p class="errortext">%s</p>' % \
+            lines.append('<p class="errortext">%s</p>' %
                          html_escape(i['text']))
         elif i['object_type'] == 'warning':
-            lines.append('<p class="warningtext">%s</p>' % \
+            lines.append('<p class="warningtext">%s</p>' %
                          html_escape(i['text']))
         elif i['object_type'] == 'header':
             lines.append('<h1 class="%s">%s</h1>' % (i.get('class', ''),
@@ -739,7 +742,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                                      '<td>%s</td></tr>' % obj['schedule_hits'])
                     if obj.has_key('expected_delay'):
                         lines.append(
-                            '<tr><td>Expected delay</td><td>%s</td></tr>' % \
+                            '<tr><td>Expected delay</td><td>%s</td></tr>' %
                             obj['expected_delay'])
                     if obj.has_key('executing_timestamp'):
                         lines.append('<tr><td>Executing</td><td>%s</td></tr>'
@@ -815,7 +818,6 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                                  % html_link(obj['outputfileslink']))
                     lines.append('<tr><td colspan=2><br /></td></tr>')
 
-
                 lines.append('</table>')
         elif i['object_type'] == 'trigger_job_list':
             jobs = i['trigger_jobs']
@@ -859,7 +861,8 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                          "<th>Message</th></tr>")
             for resubmitobj in resubmitobjs:
                 lines.append('<tr>%s</tr>'
-                              % html_table_if_have_keys(resubmitobj,
+                             % html_table_if_have_keys(
+                                 resubmitobj,
                              ['job_id', 'status', 'new_job_id',
                              'message']))
             lines.append('</table>')
@@ -872,9 +875,9 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                          "<th>Message</th></tr>")
             for changedstatus in changedstatusjobs:
                 lines.append('<tr>%s</tr>'
-                              % html_table_if_have_keys(changedstatus,
-                             ['job_id', 'oldstatus', 'newstatus',
-                             'message']))
+                             % html_table_if_have_keys(
+                                 changedstatus, ['job_id', 'oldstatus',
+                                                 'newstatus', 'message']))
             lines.append('</table>')
         elif i['object_type'] == 'saveschedulejobs':
             saveschedulejobs = i['saveschedulejobs']
@@ -896,9 +899,8 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                          "<th>Feasibility</th><th>Message</th></tr>")
             for checkcond in checkcondjobs:
                 checkcond['cond_summary'] = html_cond_summary(checkcond)
-                lines.append('<tr>%s</tr>'
-                              % html_table_if_have_keys(checkcond,
-                             ['job_id', 'cond_summary', 'message']))
+                lines.append('<tr>%s</tr>' % html_table_if_have_keys(
+                    checkcond, ['job_id', 'cond_summary', 'message']))
             lines.append('</table>')
         elif i['object_type'] == 'stats':
             stats = i['stats']
@@ -937,15 +939,11 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                              "<th>Message</th></tr>")
                 for fileuploadobj in fileuploadobjs:
                     lines.append('<tr>%s</tr>'
-                                  % html_table_if_have_keys(fileuploadobj,
-                                 [
-                        'name',
-                        'saved',
+                                 % html_table_if_have_keys(
+                                     fileuploadobj, ['name', 'saved',
                         'extract_packages',
-                        'submitmrsl',
-                        'size',
-                        'message',
-                        ]))
+                                                     'submitmrsl', 'size',
+                                                     'message', ]))
                 lines.append('</table>')
         elif i['object_type'] == 'jobobj':
             job_dict = i['jobobj'].to_dict()
@@ -1029,11 +1027,12 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                         else:
                             cls = ""
                             details = ''
-                        lines.append('<td class="%s"><tt>%s</tt></td>' % \
+                        lines.append('<td class="%s"><tt>%s</tt></td>' %
                                      (cls, details.replace(' ', '&nbsp;')))
                         cols += 1
                         # TODO: enable edit in sharelink and remove if_full here?
-                        lines.append("<td class='enable_write if_full narrow'></td>")
+                        lines.append(
+                            "<td class='enable_write if_full narrow'></td>")
                         cols += 1
                         # Note: this includes CSRF token
                         rmdir_url = rmdir_url_template % directory
@@ -1042,12 +1041,12 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                         lines.append(helper)
                         rmdir_link = html_link({
                             'object_type': 'link', 'destination':
-                            "javascript: confirmDialog(%s, '%s');" % \
-                            (js_name, 'Really completely remove %(rel_path)s?' \
+                            "javascript: confirmDialog(%s, '%s');" %
+                            (js_name, 'Really completely remove %(rel_path)s?'
                              % directory),
-                            'class': 'rmdir icon', 'title': 'Remove %(rel_path)s'\
+                            'class': 'rmdir icon', 'title': 'Remove %(rel_path)s'
                             % directory, 'text': ''})
-                        lines.append("<td class='enable_write narrow'>%s</td>" % \
+                        lines.append("<td class='enable_write narrow'>%s</td>" %
                                      rmdir_link)
                         cols += 1
                         ls_url = ls_url_template % directory
@@ -1080,7 +1079,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                         else:
                             cls = ""
                             details = ''
-                        lines.append('<td class="%s"><tt>%s</tt></td>' % \
+                        lines.append('<td class="%s"><tt>%s</tt></td>' %
                                      (cls, details.replace(' ', '&nbsp;')))
                         cols += 1
                         edit_url = editor_url_template % this_file
@@ -1088,7 +1087,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                         <a class='edit icon narrow' title='edit' href='%s'></a>
                         """ % edit_url
                         # TODO: enable edit in sharelink?
-                        lines.append("<td class='enable_write if_full narrow'>%s</td>"\
+                        lines.append("<td class='enable_write if_full narrow'>%s</td>"
                                      % edit_link)
                         cols += 1
                         # Note: this includes CSRF token
@@ -1098,12 +1097,12 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                         lines.append(helper)
                         rm_link = html_link({
                             'object_type': 'link', 'destination':
-                            "javascript: confirmDialog(%s, '%s');" % \
-                            (js_name, 'Really remove %(rel_path)s?' % \
+                            "javascript: confirmDialog(%s, '%s');" %
+                            (js_name, 'Really remove %(rel_path)s?' %
                              this_file),
-                            'class': 'rm icon', 'title': 'Remove %(rel_path)s'\
+                            'class': 'rm icon', 'title': 'Remove %(rel_path)s'
                             % this_file, 'text': ''})
-                        lines.append("<td class='enable_write narrow'>%s</td>" % \
+                        lines.append("<td class='enable_write narrow'>%s</td>" %
                                      rm_link)
                         cols += 1
                         filename = this_file['name']
@@ -1224,10 +1223,8 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                              '<th>Status</th><th>Job Id</th><th>Message</th>'
                              '</tr>')
                 for submitstatus in submitstatuslist:
-                    lines.append('<tr>%s</tr>'
-                                  % html_table_if_have_keys(submitstatus,
-                                 ['name', 'status', 'job_id', 'message'
-                                 ]))
+                    lines.append('<tr>%s</tr>' % html_table_if_have_keys(
+                        submitstatus, ['name', 'status', 'job_id', 'message']))
                 lines.append('</table>')
         elif i['object_type'] == 'objects':
             objects = i['objects']
@@ -1249,7 +1246,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
             if not sandboxinfos:
                 help_text = 'No sandboxes found - please download a sandbox '
                 'below to proceed'
-                lines.append('<tr class="%s"><td colspan=4>%s</td></tr>' % \
+                lines.append('<tr class="%s"><td colspan=4>%s</td></tr>' %
                              (row_name[row_number], help_text))
             for sandboxinfo in sandboxinfos:
                 row_class = row_name[row_number % 2]
@@ -1286,7 +1283,8 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
 <td>%s</td><td class="centertext">%s</td><td class="centertext">%s</td><td>%s
 </td><td class="centertext" title="%s">%s</td><td>%s</td>
 </tr>''' % (single_re['name'], viewlink, ownerlink, single_re['description'],
-            ', '.join(single_re['providers']), single_re['resource_count'],
+                    ', '.join(single_re['providers']
+                              ), single_re['resource_count'],
             single_re['created']))
                 
             lines.append('''
@@ -1339,7 +1337,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                          '<td>%s</td></tr>' % environment_html)
             if i['testprocedure']:
                 lines.append("<tr><td>Testprocedure</td>"
-                             "<td style='vertical-align:top;'>%s</td></tr>" % \
+                             "<td style='vertical-align:top;'>%s</td></tr>" %
                              i['testprocedure'])
             if i['verifystdout']:
                 lines.append("<tr><td>Verifystdout</td>"
@@ -1455,7 +1453,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
             flavor = i.get('flavor', 'freeze')
             lines.append('<div class="archive-metadata">')
             lines.append('<table class="frozenarchivedetails">')
-            lines.append('<tr><td class="title">ID</td><td>%s</td></tr>' % \
+            lines.append('<tr><td class="title">ID</td><td>%s</td></tr>' %
                          i['id'])
             if flavor in ('freeze', 'backup'):
                 lines.append('<tr><td class="title">Name</td>'
@@ -1567,7 +1565,8 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
             single_transfer['fqdn'], single_transfer['port'], login,
             ', '.join(single_transfer['src']), single_transfer['dst'],
             ', '.join(single_transfer.get('exclude', [])),
-            single_transfer.get('compress', False), single_transfer['updated'],
+                    single_transfer.get(
+                        'compress', False), single_transfer['updated'],
             single_transfer['status'], outputlink, datalink_html,
             redolink_html))
             lines.append('''
@@ -1764,57 +1763,20 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
 <br/>''')
         elif i['object_type'] == 'table_pager':
             id_prefix = i.get('id_prefix', '')
+            entry_name = i['entry_name']
             page_entries = i.get('page_entries', [5, 10, 20, 25, 40, 50, 80,
                                                   100, 250, 500, 1000])
             default_entries = i.get('default_entries', 20)
             if not default_entries in page_entries:
                 page_entries.append(default_entries)
-            toolbar = '''
-  <div>
-    <div class="toolbar">        
-      <div class="pager" id="%spager">
-      <form style="display: inline;" action="">
-''' % id_prefix
-            if i.get('form_prepend', False):
-                toolbar += '%(form_prepend)s' % i
-            toolbar += '''            
-        <img class="first icon" alt="first" src="/images/icons/arrow_left.png"/>
-        <img class="prev icon" alt="prev" src="/images/icons/arrow_left.png"/>
-        <input class="pagedisplay" type="text" size=15 readonly="readonly" />
-        <img class="next icon" alt="next" src="/images/icons/arrow_right.png"/>
-        <img class="last icon" alt="last" src="/images/icons/arrow_right.png"/>
-        <select class="pagesize">
-'''
-            for value in page_entries:
-                selected = ''
-                if value == default_entries:
-                    selected = 'selected'
-                toolbar += '<option %s value="%d">%d %s per page</option>\n'\
-                           % (selected, value, value, '%(entry_name)s')
-            toolbar += '''
-        </select>
-'''
-            if i.get('form_append', False):
-                toolbar += '%(form_append)s' % i
-            refresh_button = ""
-            if i.get('refresh_button', True):
-                refresh_button = '''
-            <img class="pagerrefresh icon" alt="refresh" src="/images/icons/arrow_refresh.png"
-                title="Refresh" />
-                '''
-            toolbar += '''
-        <div id="%spagerrefresh" class="inline">
-            %s
-            <div id="ajax_status" class="inline"><!-- Dynamically filled by js --></div>
-        </div>
-''' % (id_prefix, refresh_button)
-            toolbar += '''
-      </form>
-      </div>
-    </div>
-  </div>
-'''
-            lines.append(toolbar % {'entry_name': i['entry_name']})
+            form_prepend = i.get('form_prepend', '')
+            form_append = i.get('form_append', '')
+            enable_refresh_button = i.get('refresh_button', True)
+            toolbar = tablesorter_pager(configuration, id_prefix, entry_name,
+                                        page_entries, default_entries,
+                                        form_prepend, form_append,
+                                        enable_refresh_button)
+            lines.append(toolbar)
         elif i['object_type'] == 'resource_list':
             if len(i['resources']) > 0:
                 res_fields = ['PUBLICNAME', 'NODECOUNT', 'CPUCOUNT', 'MEMORY',
@@ -1845,7 +1807,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                     if obj.get('SANDBOX', False):
                         res_type = 'sandbox'
                     lines.append(
-                        '<td class="%sres" title="%s resource">%s</td>' % \
+                        '<td class="%sres" title="%s resource">%s</td>' %
                         (res_type, res_type, obj['name']))
                     lines.append('<td class="centertext">')
                     # view or admin link depending on ownership
@@ -1859,7 +1821,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                     # List number of runtime environments in field and add
                     # actual names as mouse-over
                     rte_list = obj.get('RUNTIMEENVIRONMENT', [])
-                    lines.append('<td class="centertext" title="%s">' % \
+                    lines.append('<td class="centertext" title="%s">' %
                                  ', '.join(rte_list))
                     lines.append('%d' % len(rte_list))
                     lines.append('</td>')
@@ -1955,7 +1917,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                              )
                 for obj in users:
                     lines.append('<tr>')
-                    lines.append('<td class="user" title="user">%s</td>' % \
+                    lines.append('<td class="user" title="user">%s</td>' %
                                  obj['name'])
                     lines.append('<td class="centertext">')
                     if obj.has_key('userdetailslink'):
@@ -2028,7 +1990,7 @@ def html_format(configuration, ret_val, ret_msg, out_obj):
                         if name == 'subject':
                             link_entry = {'object_type': 'link', 'text':
                                           val, 'destination':
-                                          '%s&vgrid_name=%s' % \
+                                          '%s&vgrid_name=%s' %
                                           (entry['link'], i['vgrid_name'])}
                             lines.append('%s' % html_link(link_entry))
                         else:
@@ -2188,10 +2150,10 @@ Reload thread</a></p>''' % (i['vgrid_name'], i['thread']))
                     'web': ['enterprivatelink', 'editprivatelink',
                             'enterpubliclink', 'editpubliclink'],
                     'scm': ['ownerscmlink', 'memberscmlink'
-                            #'publicscmlink'
+                            # 'publicscmlink'
                             ],
                     'tracker': ['ownertrackerlink', 'membertrackerlink'
-                                #'publictrackerlink'
+                                # 'publictrackerlink'
                                 ],
                     'forum': ['privateforumlink'],
                     'workflows': ['privateworkflowslink'],
@@ -2251,7 +2213,7 @@ Reload thread</a></p>''' % (i['vgrid_name'], i['thread']))
                     lines.append('</tr>')
                 lines.append('</tbody></table>')
             else:
-                lines.append('No matching %ss found' % \
+                lines.append('No matching %ss found' %
                              configuration.site_vgrid_label)
         elif i['object_type'] == 'user_stats':
             if i.get('disk', None):
@@ -2321,21 +2283,25 @@ def soap_format(configuration, ret_val, ret_msg, out_obj):
     import SOAPpy
     return SOAPpy.buildSOAP(out_obj)
 
+
 def pickle_helper(configuration, ret_val, ret_msg, out_obj, protocol=None):
     """Generate output in requested pickle protocol format"""
 
     from shared.serial import dumps
     return dumps(out_obj, protocol)
 
+
 def pickle_format(configuration, ret_val, ret_msg, out_obj):
     """Generate output in default pickle protocol format"""
 
     return pickle_helper(configuration, ret_val, ret_msg, out_obj, protocol=0)
 
+
 def pickle1_format(configuration, ret_val, ret_msg, out_obj):
     """Generate output in pickle protocol 1 format"""
 
     return pickle_helper(configuration, ret_val, ret_msg, out_obj, protocol=1)
+
 
 def pickle2_format(configuration, ret_val, ret_msg, out_obj):
     """Generate output in default pickle protocol 2 format"""
@@ -2348,6 +2314,7 @@ def yaml_format(configuration, ret_val, ret_msg, out_obj):
 
     import yaml
     return yaml.dump(out_obj)
+
 
 def xmlrpc_format(configuration, ret_val, ret_msg, out_obj):
     """Generate output in xmlrpc format"""
@@ -2362,12 +2329,14 @@ def xmlrpc_format(configuration, ret_val, ret_msg, out_obj):
                 entry[key] = xmlrpclib.Binary(entry[key])
     return xmlrpclib.dumps((out_obj, ), allow_none=True)
 
+
 def json_format(configuration, ret_val, ret_msg, out_obj):
     """Generate output in json format"""
 
     # python >=2.6 includes native json module with loads/dumps methods
     import json
     return json.dumps(out_obj)
+
 
 def file_format(configuration, ret_val, ret_msg, out_obj):
     """Dump raw file contents"""
@@ -2380,6 +2349,7 @@ def file_format(configuration, ret_val, ret_msg, out_obj):
                 file_content += line
             
     return file_content
+
 
 def get_valid_outputformats():
     """Return list of valid outputformats"""
@@ -2416,10 +2386,9 @@ def format_output(
         # hide previous output
 
         out_obj = []
-        out_obj.extend([{'object_type': 'error_text', 'text'
-                       : 'Validation error! %s' % val_msg},
-                       {'object_type': 'title', 'text'
-                       : 'Validation error!'}])
+        out_obj.extend([{'object_type': 'error_text', 'text':
+                         'Validation error! %s' % val_msg},
+                        {'object_type': 'title', 'text': 'Validation error!'}])
 
     start = None
     title = None
@@ -2454,12 +2423,13 @@ def format_output(
         return txt_format(configuration, ret_val, ret_msg, out_obj)
 
     try:
-        return eval('%s_format(configuration, ret_val, ret_msg, out_obj)' % \
+        return eval('%s_format(configuration, ret_val, ret_msg, out_obj)' %
                     outputformat)
     except Exception, err:
-        configuration.logger.error("%s formatting failed: %s\n%s" % \
+        configuration.logger.error("%s formatting failed: %s\n%s" %
                                    (outputformat, err, traceback.format_exc()))
         return None
+
 
 def format_timedelta(timedelta):
     """Formats timedelta as '[Years,] [days,] HH:MM:SS'"""
@@ -2493,4 +2463,3 @@ def format_timedelta(timedelta):
         
     return result
 
-    
