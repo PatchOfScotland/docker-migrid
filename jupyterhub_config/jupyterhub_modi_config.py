@@ -36,9 +36,9 @@ c.SwarmSpawner.container_spec = {
 
 c.SwarmSpawner.dockerimages = [
     {
-        'image': 'nielsbohr/base-notebook:latest',
+        'image': 'nielsbohr/hpc-notebook:latest',
         'mounts': mounts,
-        'name': 'modi'
+        'name': 'HPC Notebook'
     }
 ]
 c.SwarmSpawner.jupyterhub_service_name = 'modi'
