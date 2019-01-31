@@ -79,7 +79,7 @@ def main(client_id, user_arguments_dict):
 
     services = [{'object_type': 'service',
                  'name': options['service_name'],
-                 'description': options['service_desc']}
+                 'description': options.get('service_desc', '')}
                 for service, options in configuration.jupyter_services.items()]
 
     # Show jupyter services menu
@@ -117,8 +117,10 @@ def main(client_id, user_arguments_dict):
                                'text': '''
         <div id="%s-tab">
         ''' % (service['name'])})
-        output_objects.append({'object_type': 'sectionheader',
-                               'text': 'Service Description'})
+
+        if service['description']:
+            output_objects.append({'object_type': 'sectionheader',
+                                   'text': 'Service Description'})
         output_objects.append({'object_type': 'html_form', 'text': '''
         <div class="jupyter-description">
         <p>%s</p>
