@@ -10,7 +10,7 @@ c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 c.DockerSpawner.container_image = 'nielsbohr/base-notebook:latest'
 c.DockerSpawner.remove_containers = True
 
-c.DockerSpawner.network_name = 'docker-migrid_default'
+c.DockerSpawner.network_name = 'docker-migrid_jupyter'
 
 c.JupyterHub.authenticator_class = 'jhubauthenticators.DataRemoteUserAuthenticator'
 c.DataRemoteUserAuthenticator.data_headers = ['Mount']

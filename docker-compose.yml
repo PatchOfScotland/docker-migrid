@@ -5,6 +5,8 @@ services:
     image: ruudud/devdns
     container_name: devdns
     ports: ["53:53/udp"]
+    networks:
+      - default
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -47,6 +49,8 @@ services:
     depends_on:
       - migrid
       - dag
+    networks:
+      - default
     ports:
     - "80:80"
     - "443:443"
@@ -65,6 +69,8 @@ services:
     container_name: dag
     depends_on:
       - devdns
+    networks:
+      - jupyter
     environment:
       - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
     volumes:
@@ -77,13 +83,21 @@ services:
     container_name: modi
     depends_on:
       - devdns
+    networks:
+      - jupyter
     environment:
       - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
     volumes:
       - ./jupyterhub_config/jupyterhub_modi_config.py:/srv/jupyterhub/jupyter_config.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
     command: jupyterhub -f /srv/jupyterhub/jupyter_config.py
-  
+
+networks:
+  default:
+  jupyter:
+    driver: overlay
+
+
 volumes:
   certs:
     driver_opts:

@@ -42,7 +42,7 @@ c.SwarmSpawner.dockerimages = [
     }
 ]
 c.SwarmSpawner.jupyterhub_service_name = 'modi'
-c.SwarmSpawner.networks = ['docker-migrid_default']
+c.SwarmSpawner.networks = ['docker-migrid_jupyter']
 
 c.JupyterHub.authenticator_class = 'jhubauthenticators.DataRemoteUserAuthenticator'
 c.DataRemoteUserAuthenticator.data_headers = ['Mount']
