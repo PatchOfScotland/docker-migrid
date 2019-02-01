@@ -14,6 +14,8 @@ done
 
 # Create a default account (Use service owner account)
 if [ "$USERNAME" != "" ] && [ "$PASSWORD" != "" ]; then
+    # Ensure the database is present
+    su - $USER -c "$MIG_ROOT/mig/server/migrateusers.py"
     # createuser.py Usage:
     # [OPTIONS] [FULL_NAME ORGANIZATION STATE COUNTRY EMAIL COMMENT PASSWORD]
     su - $USER -c "$MIG_ROOT/mig/server/createuser.py devuser org dk dk $USERNAME foo $PASSWORD"
