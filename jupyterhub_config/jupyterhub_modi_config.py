@@ -1,49 +1,26 @@
-import os
-from jhub.mount import SSHFSMounter
 # Example config
+from ldap_hook import jhub_ldap_user_hook
 c = get_config()
+
+
+    
+
 
 c.JupyterHub.ip = '0.0.0.0'
 c.JupyterHub.hub_ip = '0.0.0.0'
 c.JupyterHub.port = 80
 c.JupyterHub.base_url = '/modi'
-c.JupyterHub.spawner_class = 'jhub.SwarmSpawner'
+c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 
-notebook_dir = os.environ.get('NOTEBOOK_DIR') or '/home/jovyan/work'
+c.DockerSpawner.container_image = 'nielsbohr/hpc-notebook:latest'
+c.DockerSpawner.remove_containers = True
 
-mounts = [
-    SSHFSMounter({
-        'source': '',
-        'target': notebook_dir,
-        'type': 'volume',
-        'driver_config': 'rasmunk/sshfs:latest',
-        'driver_options': {'sshcmd': '{sshcmd}',
-                           'id_rsa': '{id_rsa}',
-                           'one_time': 'True',
-                           'reconnect': '', 'big_writes': '', 'allow_other': ''}
-    })
-]
-
-c.SwarmSpawner.use_user_options = True
-
-c.SwarmSpawner.container_spec = {
-    'args': ['/usr/local/bin/start-singleuser.sh',
-             '--NotebookApp.ip=0.0.0.0',
-             '--NotebookApp.port=8888'],
-    'env': {'JUPYTER_ENABLE_LAB': '1',
-            'TZ': 'Europe/Copenhagen'}
-}
-
-c.SwarmSpawner.dockerimages = [
-    {
-        'image': 'nielsbohr/hpc-notebook:latest',
-        'mounts': mounts,
-        'name': 'HPC Notebook'
-    }
-]
-c.SwarmSpawner.jupyterhub_service_name = 'modi'
-c.SwarmSpawner.networks = ['docker-migrid_jupyter']
+c.DockerSpawner.network_name = 'docker-migrid_default'
 
 c.JupyterHub.authenticator_class = 'jhubauthenticators.DataRemoteUserAuthenticator'
-c.DataRemoteUserAuthenticator.data_headers = ['Mount']
+c.DataRemoteUserAuthenticator.data_headers = ['Mount', 'User-ID']
 c.Authenticator.enable_auth_state = True
+
+c.DockerSpawner.container_spec
+
+c.DockerSpawner.pre_spawn_hook = jhub_ldap_user_hook
