@@ -31,7 +31,7 @@ RUN yum update -y \
 RUN yum install -y mod_auth_openid
 
 # Setup user
-ARG USER=mig
+ENV USER=mig
 ENV UID=1000
 ENV GID=1000
 
