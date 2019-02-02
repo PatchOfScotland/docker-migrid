@@ -86,6 +86,15 @@ services:
     command: /bin/bash -c "mkdir -p /app && cp -r /srv/jupyterhub/ldap /app/ldap && cd /app/ldap &&
      python setup.py install && jupyterhub -f /srv/jupyterhub/jupyter_config.py"
 
+  openldap:
+    image: osixia/openldap:1.2.3
+    container_name: openldap
+    environment:
+      TZ: Europe/Copenhagen
+    ports:
+      - "389:389/tcp"
+      - "636:636/tcp"
+
 volumes:
   certs:
     driver_opts:
