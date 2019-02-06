@@ -1,0 +1,20 @@
+version: '3.7'
+
+services:
+  openldap:
+    image: osixia/openldap:1.2.3
+    container_name: openldap
+    environment:
+      TZ: Europe/Copenhagen
+      LDAP_REMOVE_CONFIG_AFTER_STEUP: "false"
+      KEEP_EXISTING_CONFIG: "true"
+    ports:
+      - "389:389/tcp"
+      - "636:636/tcp"
+    volumes:
+      - ./openldap/data:/var/lib/ldap
+      - ./openldap/config:/etc/ldap/slapd.d
+
+volumes:
+  slapd:
+  ldap:

@@ -1,22 +1,77 @@
 from ldap3 import Server, Connection
-from .user import ldap_create
+from ldap3.utils.log import set_library_log_detail_level, EXTENDED, BASIC
+from ldap3.core.exceptions import LDAPException
+from traitlets import Unicode
+from traitlets.config import LoggingConfigurable
+from textwrap import dedent
+from .ldap import add_dn, get_dn
+
+
+class LDAP(LoggingConfigurable):
+
+    url = Unicode(None, allow_none=False, config=True,
+                  help=dedent("""
+    URL/IP of the LDAP server.
+    E.g. 127.0.0.1
+    """))
+
+    user = Unicode(None, allow_none=False, config=True,
+                   help=dedent("""
+    Distinguished Name that is used to connect to the LDAP server.
+    E.g. cn=admin,dc=example,dc=org
+    """))
+
+    password = Unicode(None, allow_none=True, config=True,
+                       help=dedent("""
+    Password used to authenticate as auth_user.
+    """))
+
+    object_class = Unicode(None, allow_none=True, config=True,
+                           help=dedent("""
+    Which LDAP object class should be used to submit/setup the user.
+    """))
+
+    custom_name_attr = Unicode("", allow_none=False, config=True,
+                               help=dedent("""
+    A custom attribute override attribute that should be used 
+    as the name to submit to the LDAP server instead of the default spawner.user.name
+    """))
 
 
 class ConnectionManager:
 
     def __init__(self, url, **connection_args):
+        if url is None:
+            raise TypeError("url argument must be provided")
+
+        if not isinstance(url, str) or not url:
+            raise ValueError("url must be a non zero length string")
+
+        if connection_args and not isinstance(connection_args, dict):
+            raise TypeError("connection_args must be a dictionary")
+
         self.url = url
-        self.connection = None
         self.connection_args = connection_args
-        self.is_connected = False
+        self.connection = None
+        self.connected = False
 
     def connect(self):
         server = Server(self.url)
-        self.connection = Connection(server, 'uid=admin,dc=example')
-        self.is_connected = self.connection.bind()
+        try:
+            if self.connection_args:
+                # Can be Anonymous if both 'user' and 'password' are None
+                self.connection = Connection(server, **self.connection_args)
+            else:
+                # Anonymous login
+                self.connection = Connection(server)
+        except LDAPException:
+            # TODO, setup debug logging for failed connection
+            self.connected = False
+            return
+        self.connected = self.connection.bind()
 
     def is_connected(self):
-        return self.is_connected
+        return self.connected
 
     def get_connection(self):
         return self.connection
@@ -26,35 +81,51 @@ class ConnectionManager:
 
     def disconnect(self):
         if self.connection.unbind():
-            self.is_connected = False
+            self.connected = False
 
 
 def setup_ldap_user(spawner):
-    try:
-        user = spawner.user
-    except AttributeError as err:
+    if not hasattr(spawner, 'user'):
         spawner.log.error(
-            "The spawner instance had no user attribute: {}".format(err))
-        return None
+            "The spawner instance had no user attribute {}".format(spawner))
+        return False
+    user = spawner.user
 
     if not user:
         spawner.log.error("The spawner had a None user object instance")
-        return None
+        return False
 
-    if 'data' not in user:
+    if not hasattr(user, 'name') or not isinstance(user.name, str) or not user.name:
         spawner.log.error(
-            "The user has no data instance that should contain the ldap_server_url")
-        return None
+            "The user's name attribute is either missing or not of str type: {}".format(user))
+        return False
 
-    if 'ldap_server_url' not in user.data:
-        spawner.log.error("The user's data attribute has no ldap_server_url")
-        return None
+    submit_name = spawner.user.name
 
-    conn_manager = ConnectionManager(spawner.data.ldap_server_url, {''})
+    if LDAP.custom_name_attr:
+        if hasattr(user, LDAP.custom_name_attr):
+            submit_name = getattr(user, LDAP.custom_name_attr)
+
+    conn_manager = ConnectionManager(
+        LDAP.url, user=LDAP.auth_user, password=LDAP.password)
     conn_manager.connect()
-    # if conn_manager.is_connected:
-    #     ldap_create(user, conn_manager.get_connection())
 
-    # Unicode characters must be base64 encoded
+    entry = None
+    if conn_manager.is_connected():
+        success = add_dn(submit_name, conn_manager.get_connection(),
+                         object_class=LDAP.object_class)
+        if not success:
+            spawner.log.error(
+                "Failed to add {} to {}".format(submit_name, LDAP.url))
+            return False
+        # success, entry = get_dn(user.name, conn_manager.get_connection(), object_class=user_type)
+        # if not success:
+        #     spawner.log.error("Failed to get {} at {}".format(user.name, url))
+        #     return False
+    else:
+        spawner.log.error("Failed to connect to {}".format(LDAP.url))
+        return False
 
-    # ALSO https://ldapwiki.com/wiki/Distinguished%20Names
+    spawner.log.info("Created {} at {} entry {}".format(
+        user.name, LDAP.url, entry))
+    return True

@@ -13,6 +13,7 @@ setup(
     description="""""",
     packages=find_packages(),
     install_requires=[
-        'ldap3>=2.5.2'
+        'ldap3>=2.5.2',
+        'traitlets>=4.3.2'
     ]
 )
