@@ -1,21 +1,23 @@
+import ast
+import logging
 from ldap3 import Server, Connection
 from ldap3.utils.log import set_library_log_detail_level, EXTENDED, BASIC
 from ldap3.core.exceptions import LDAPException
-from traitlets import Unicode
-from traitlets.config import LoggingConfigurable
+from traitlets import Unicode, Dict, List
+from traitlets.config import SingletonConfigurable, LoggingConfigurable
 from textwrap import dedent
-from .ldap import add_dn, get_dn
+from .ldap import add_dn
 
 
 class LDAP(LoggingConfigurable):
 
-    url = Unicode(None, allow_none=False, config=True,
+    url = Unicode("", allow_none=False, config=True,
                   help=dedent("""
     URL/IP of the LDAP server.
     E.g. 127.0.0.1
     """))
 
-    user = Unicode(None, allow_none=False, config=True,
+    user = Unicode("", allow_none=False, config=True,
                    help=dedent("""
     Distinguished Name that is used to connect to the LDAP server.
     E.g. cn=admin,dc=example,dc=org
@@ -26,7 +28,7 @@ class LDAP(LoggingConfigurable):
     Password used to authenticate as auth_user.
     """))
 
-    object_class = Unicode(None, allow_none=True, config=True,
+    object_class = Unicode(None, allow_none=False, config=True,
                            help=dedent("""
     Which LDAP object class should be used to submit/setup the user.
     """))
@@ -35,6 +37,21 @@ class LDAP(LoggingConfigurable):
                                help=dedent("""
     A custom attribute override attribute that should be used 
     as the name to submit to the LDAP server instead of the default spawner.user.name
+    """))
+
+    replace_name_with = Dict(trait=Unicode(), traits={Unicode(): Unicode()}, default_value={}, help=dedent("""
+    A dictionary of key value pairs that should be used to prepare the submit user name
+
+    E.g. {'/': '+'}
+    Which translates the following name as:
+        /C=NA/ST=NA/L=NA/O=NA/OU=NA/CN=User Name/emailAddress=email@address.com
+
+        +C=NA+ST=NA+L=NA+O=NA+OU=NA+CN=User Name+emailAddress=email@address.com
+    """))
+
+    name_strip_chars = List(trait=Unicode(), default_value=['/', '+', '*', ',', '.', '!', ' '],
+                            help=dedent("""
+    A list of characters that should be lstriped and rstriped from the submit name
     """))
 
 
@@ -85,6 +102,10 @@ class ConnectionManager:
 
 
 def setup_ldap_user(spawner):
+    instance = LDAP()
+    logging.basicConfig(filename='client_application.log', level=logging.DEBUG)
+    set_library_log_detail_level(BASIC)
+
     if not hasattr(spawner, 'user'):
         spawner.log.error(
             "The spawner instance had no user attribute {}".format(spawner))
@@ -102,30 +123,48 @@ def setup_ldap_user(spawner):
 
     submit_name = spawner.user.name
 
-    if LDAP.custom_name_attr:
-        if hasattr(user, LDAP.custom_name_attr):
-            submit_name = getattr(user, LDAP.custom_name_attr)
+    if instance.custom_name_attr:
+        # TODO, switch to only attribute lookup
+        submit_name = ""
+        if hasattr(user, instance.custom_name_attr):
+            submit_name = getattr(user, instance.custom_name_attr)
+        else:
+            submit_name = user.data.get('User', {}).get('CERT', '')
+
+    if not submit_name:
+        spawner.log.error(
+            "No valid submit_name was found {}".format(submit_name))
+        return False
 
     conn_manager = ConnectionManager(
-        LDAP.url, user=LDAP.auth_user, password=LDAP.password)
+        instance.url, user=instance.auth_user, password=instance.password)
     conn_manager.connect()
 
     entry = None
     if conn_manager.is_connected():
+        # Prepare submit name
+        spawner.log.info("Submit name {}".format(submit_name))
+        for replace_key, replace_val in instance.replace_name_with.items():
+            submit_name = submit_name.replace(replace_key, replace_val)
+
+        for strip in instance.name_strip_chars:
+            submit_name = submit_name.strip(strip)
+
+        spawner.log.info("Submit name {}".format(submit_name))
         success = add_dn(submit_name, conn_manager.get_connection(),
-                         object_class=LDAP.object_class)
+                         object_class=instance.object_class)
         if not success:
             spawner.log.error(
-                "Failed to add {} to {}".format(submit_name, LDAP.url))
+                "Failed to add {} to {}".format(submit_name, instance.url))
             return False
         # success, entry = get_dn(user.name, conn_manager.get_connection(), object_class=user_type)
         # if not success:
         #     spawner.log.error("Failed to get {} at {}".format(user.name, url))
         #     return False
     else:
-        spawner.log.error("Failed to connect to {}".format(LDAP.url))
+        spawner.log.error("Failed to connect to {}".format(instance.url))
         return False
 
     spawner.log.info("Created {} at {} entry {}".format(
-        user.name, LDAP.url, entry))
+        user.name, instance.url, entry))
     return True

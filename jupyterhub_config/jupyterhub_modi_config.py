@@ -1,5 +1,6 @@
 # Example config
 from ldap_spawner_hooks import setup_ldap_user
+from ldap_spawner_hooks import LDAP
 c = get_config()
 
 c.JupyterHub.ip = '0.0.0.0'
@@ -17,11 +18,12 @@ c.JupyterHub.authenticator_class = 'jhubauthenticators.DataRemoteUserAuthenticat
 c.DataRemoteUserAuthenticator.data_headers = ['Mount', 'User']
 c.Authenticator.enable_auth_state = True
 
-c.LDAP.url = "127.0.0.1"
-c.LDAP.auth_user = "cn=admin,dc=example,dc=org"
-c.LDAP.password = "admin"
-c.LDAP.object_class = "x-certsdn"
-c.LDAP.custom_name_attr = "{'data': 'CERT'}"
-
 c.Spawner.pre_spawn_hook = setup_ldap_user
- 
+
+# Setup ldap options 
+LDAP.url = "openldap"
+LDAP.auth_user = "cn=admin,dc=example,dc=org"
+LDAP.password = "admin"
+LDAP.object_class = "x-certsdn"
+LDAP.custom_name_attr = "CERT"
+LDAP.replace_name_with = {'/': '+'}
