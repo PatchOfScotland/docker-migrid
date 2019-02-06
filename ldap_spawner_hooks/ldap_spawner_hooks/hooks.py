@@ -1,4 +1,3 @@
-import ast
 import logging
 from ldap3 import Server, Connection
 from ldap3.utils.log import set_library_log_detail_level, EXTENDED, BASIC
@@ -33,13 +32,19 @@ class LDAP(LoggingConfigurable):
     Which LDAP object class should be used to submit/setup the user.
     """))
 
+    base_dn = Unicode(None, allow_none=False, config=True,
+                      help=dedent("""
+        
+    """))
+
     custom_name_attr = Unicode("", allow_none=False, config=True,
                                help=dedent("""
     A custom attribute override attribute that should be used 
     as the name to submit to the LDAP server instead of the default spawner.user.name
     """))
 
-    replace_name_with = Dict(trait=Unicode(), traits={Unicode(): Unicode()}, default_value={}, help=dedent("""
+    replace_name_with = Dict(trait=Unicode(), traits={Unicode(): Unicode()}, default_value={},
+                             help=dedent("""
     A dictionary of key value pairs that should be used to prepare the submit user name
 
     E.g. {'/': '+'}
@@ -151,8 +156,8 @@ def setup_ldap_user(spawner):
             submit_name = submit_name.strip(strip)
 
         spawner.log.info("Submit name {}".format(submit_name))
-        success = add_dn(submit_name, conn_manager.get_connection(),
-                         object_class=instance.object_class)
+        success = add_dn(','.join([submit_name, instance.base_dn]),
+                         conn_manager.get_connection(), object_class=instance.object_class)
         if not success:
             spawner.log.error(
                 "Failed to add {} to {}".format(submit_name, instance.url))

@@ -24,6 +24,7 @@ c.Spawner.pre_spawn_hook = setup_ldap_user
 LDAP.url = "openldap"
 LDAP.auth_user = "cn=admin,dc=example,dc=org"
 LDAP.password = "admin"
+LDAP.base_dn = "dc=example,dc=org"
 LDAP.object_class = "x-certsdn"
 LDAP.custom_name_attr = "CERT"
 LDAP.replace_name_with = {'/': '+'}
