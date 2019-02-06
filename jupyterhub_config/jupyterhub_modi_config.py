@@ -20,11 +20,11 @@ c.Authenticator.enable_auth_state = True
 
 c.Spawner.pre_spawn_hook = setup_ldap_user
 
-# Setup ldap options 
+# Define LDAP options
 LDAP.url = "openldap"
 LDAP.auth_user = "cn=admin,dc=example,dc=org"
 LDAP.password = "admin"
 LDAP.base_dn = "dc=example,dc=org"
-LDAP.object_class = "x-certsdn"
+LDAP.object_classes = ["x-certsdn", 'PosixAccount']
 LDAP.custom_name_attr = "CERT"
 LDAP.replace_name_with = {'/': '+'}

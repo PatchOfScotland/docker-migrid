@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     cn = "/C=NA/ST=NA/L=NA/O=NA/OU=NA/CN=User Name/emailAddress=email@address.com"
     parsed_cn = cn.replace('/', '+').lstrip('+')
-    parsed_cn += ',dc=example,dc=org'
-    return_value = conn.add(parsed_cn, 'x-certsdn')
-
+    parsed_cn += 'cn=admin,dc=example,dc=org'
+#     return_value = conn.add(parsed_cn, 'x-certsdn')
+    return_value = conn.search("dc=example,dc=org", '(objectclass=PosixAccount)')
     conn.unbind()

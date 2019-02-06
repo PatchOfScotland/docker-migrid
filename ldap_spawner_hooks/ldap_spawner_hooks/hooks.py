@@ -27,14 +27,15 @@ class LDAP(LoggingConfigurable):
     Password used to authenticate as auth_user.
     """))
 
-    object_class = Unicode(None, allow_none=False, config=True,
-                           help=dedent("""
-    Which LDAP object class should be used to submit/setup the user.
-    """))
 
     base_dn = Unicode(None, allow_none=False, config=True,
                       help=dedent("""
         
+    """))
+
+    object_classes = List(trait=Unicode(), default_value=None, allow_none=False,
+                          config=True, help=dedent("""
+    Which LDAP object classes should be used to submit/setup the user.
     """))
 
     custom_name_attr = Unicode("", allow_none=False, config=True,
@@ -157,7 +158,7 @@ def setup_ldap_user(spawner):
 
         spawner.log.info("Submit name {}".format(submit_name))
         success = add_dn(','.join([submit_name, instance.base_dn]),
-                         conn_manager.get_connection(), object_class=instance.object_class)
+                         conn_manager.get_connection(), object_class=instance.object_classes)
         if not success:
             spawner.log.error(
                 "Failed to add {} to {}".format(submit_name, instance.url))
