@@ -4,7 +4,7 @@
 # --- BEGIN_HEADER ---
 #
 # gdpman - Sensitive Information Facility management
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -43,7 +43,7 @@ from shared.gdp import ensure_user, get_projects, get_users, \
     validate_user
 from shared.handlers import safe_handler, get_csrf_limit, make_csrf_token
 from shared.html import themed_styles, jquery_ui_js, twofactor_wizard_html, \
-    twofactor_wizard_js
+    twofactor_wizard_js, twofactor_token_html
 from shared.httpsclient import extract_client_openid
 from shared.init import initialize_main_variables, find_entry
 from shared.settings import load_twofactor, parse_and_save_twofactor
@@ -117,9 +117,19 @@ def html_tmpl(
     # Generate html
 
     status_html = ""
-    html = \
-        """
-        <form id='gm_project_submit_form' action='gdpman.py', method='post'>
+    html = ""
+    if configuration.site_enable_twofactor:
+        html += """
+<div id='otp_verify_dialog' title='Verify Authenticator App Token'
+   class='centertext hidden'>
+"""
+        # NOTE: wizard needs dialog with form outside the main settings form
+        # because nested forms cause problems
+        html += twofactor_token_html(configuration)
+        html += """</div>
+"""
+    html += """
+        <form id='gm_project_submit_form' action='gdpman.py' method='post'>
         <input type='hidden' name='%(csrf_field)s' value='%(csrf_token)s' />
         <input type='hidden' name='action' value='' />
         <input type='hidden' name='base_vgrid_name' value='' />
@@ -235,7 +245,6 @@ def html_tmpl(
             </td></tr>
         </tbody>
         </table>
-        </form>
         </div>"""
 
     # Show project invitations selectbox
@@ -286,7 +295,6 @@ def html_tmpl(
             </td></tr>
         </tbody>
         </table>
-        </form>
         </div>"""
 
     # Show project invite selectbox
@@ -345,7 +353,6 @@ def html_tmpl(
             </td></tr>
         </tbody>
         </table>
-        </form>
         </div>
         """
 
@@ -405,7 +412,6 @@ def html_tmpl(
             </td></tr>
         </tbody>
         </table>
-        </form>
         </div>
         """
 
@@ -460,7 +466,6 @@ def html_tmpl(
             </td></tr>
         </tbody>
         </table>
-        </form>
         </div>
         """
 
@@ -526,8 +531,7 @@ def html_tmpl(
         html += """<script>
     setOTPProgress(['otp_intro', 'otp_install', 'otp_import', 'otp_verify',
                     'otp_ready']);
-</script>
-        """
+</script>"""
 
     fill_helpers.update({
         'client_id': client_id,
@@ -536,15 +540,13 @@ def html_tmpl(
     fill_entries.update(fill_helpers)
 
     html += """
-        </div>
-        """
+</div>"""
 
     # Tabs and form close tags
 
-    html += \
-        """
-        </div>
-        </form>"""
+    html += """
+</form>    
+"""
     html = html % fill_entries
 
     if preselected_tab > 0:
@@ -566,7 +568,7 @@ def html_logout_tmpl(configuration, csrf_token):
 
     html = \
         """
-    <form id='gm_logout_form' action='gdpman.py', method='post'>
+    <form id='gm_logout_form' action='gdpman.py' method='post'>
     <input type='hidden' name='%(csrf_field)s' value='%(csrf_token)s' />
     <input type='hidden' name='action' value='' />
     <table class='gm_projects_table' style='border-spacing=0;'>
@@ -901,9 +903,9 @@ Please contact the Grid admins %s if you think it should be enabled.
 
     # Make sure user exists in GDP user db
 
-    ensure_user(configuration, client_addr, client_id)
+    (status, ensure_msg) = ensure_user(configuration, client_addr, client_id)
 
-    if not action or action == 'logout':
+    if status and not action or action == 'logout':
         active_project_client_id = get_active_project_client_id(
             configuration, client_id, 'https')
 
@@ -937,11 +939,17 @@ Please contact the Grid admins %s if you think it should be enabled.
 
     # Generate html
 
-    (validate_status, validate_msg) = validate_user(configuration,
-                                                    client_id,
-                                                    client_addr,
-                                                    'https')
-    if not validate_status:
+    if status:
+        (status, validate_msg) = validate_user(configuration,
+                                               client_id,
+                                               client_addr,
+                                               'https')
+    if not status:
+        status_msg = ''
+        if ensure_msg:
+            status_msg = ensure_msg
+        elif validate_msg:
+            status_msg = validate_msg
         html = """
             <table class='gm_projects_table' style='border-spacing=0;'>
             <thead>
@@ -954,7 +962,7 @@ Please contact the Grid admins %s if you think it should be enabled.
                 <tr><td>%s</td></tr>
             </tbody>
             </table>""" \
-            % validate_msg
+            % status_msg
         html += html_logout_tmpl(configuration, csrf_token)
         output_objects.append({'object_type': 'html_form',
                                'text': html})
@@ -962,7 +970,6 @@ Please contact the Grid admins %s if you think it should be enabled.
 
         # Entry page
 
-        status = True
         action_msg = ''
         if action == 'access':
 

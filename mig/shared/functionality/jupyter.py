@@ -80,7 +80,7 @@ def main(client_id, user_arguments_dict):
     services = [{'object_type': 'service',
                  'name': options['service_name'],
                  'description': options.get('service_desc', '')}
-                for service, options in configuration.jupyter_services.items()]
+                for options in configuration.jupyter_services]
 
     # Show jupyter services menu
     (add_import, add_init, add_ready) = man_base_js(configuration, [])
@@ -88,7 +88,6 @@ def main(client_id, user_arguments_dict):
     add_ready += '''
         /* NOTE: requires managers CSS fix for proper tab bar height */
         $(".jupyter-tabs").tabs();
-        $("#logarea").scrollTop($("#logarea")[0].scrollHeight);
     '''
 
     title_entry = find_entry(output_objects, 'title')
@@ -131,7 +130,7 @@ def main(client_id, user_arguments_dict):
         '''})
 
         output_service = {'object_type': 'service',
-                          'name': "Redirect me to %s" % service['name'],
+                          'name': "Start %s" % service['name'],
                           'targetlink': 'reqjupyterservice.py?service=%s'
                           % service['name']}
         output_objects.append(output_service)

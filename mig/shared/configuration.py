@@ -41,6 +41,7 @@ from shared.defaults import CSRF_MINIMAL, CSRF_WARN, CSRF_MEDIUM, CSRF_FULL, \
     freeze_flavors, duplicati_protocol_choices
 from shared.logger import Logger, SYSLOG_GDP
 from shared.html import menu_items, vgrid_items
+from shared.fileio import read_file
 
 
 def fix_missing(config_file, verbose=True):
@@ -132,6 +133,7 @@ def fix_missing(config_file, verbose=True):
         'user_sftp_key_pub': '~/certs/server.pub',
         'user_sftp_key_md5': '',
         'user_sftp_key_sha256': '',
+        'user_sftp_key_from_dns': '',
         'user_sftp_auth': ['publickey', 'password'],
         'user_sftp_alias': '',
         'user_sftp_log': 'sftp.log',
@@ -337,6 +339,7 @@ class Configuration:
     user_sftp_key_pub = ''
     user_sftp_key_md5 = ''
     user_sftp_key_sha256 = ''
+    user_sftp_key_from_dns = False
     user_sftp_auth = ['publickey', 'password']
     user_sftp_alias = ''
     user_sftp_log = 'sftp.log'
@@ -502,7 +505,7 @@ class Configuration:
         """Re-read and parse configuration file. Optional skip_log
         initializes default logger to use the NullHandler in order to avoid
         uninitialized log while not really touching log files or causing stdio
-        output. 
+        output.
         """
 
         try:
@@ -725,6 +728,11 @@ location.""" % self.config_file
             self.site_enable_jobs = config.getboolean('SITE', 'enable_jobs')
         else:
             self.site_enable_jobs = True
+        if config.has_option('SITE', 'enable_resources'):
+            self.site_enable_resources = config.getboolean('SITE',
+                                                           'enable_resources')
+        else:
+            self.site_enable_resources = True
         if config.has_option('GLOBAL', 'user_monitor_log'):
             self.user_monitor_log = config.get('GLOBAL', 'user_monitor_log')
         if config.has_option('SITE', 'enable_events'):
@@ -778,6 +786,9 @@ location.""" % self.config_file
         if config.has_option('GLOBAL', 'user_sftp_key_sha256'):
             fingerprint = config.get('GLOBAL', 'user_sftp_key_sha256')
             self.user_sftp_key_sha256 = fingerprint
+        if config.has_option('GLOBAL', 'user_sftp_key_from_dns'):
+            self.user_sftp_key_from_dns = config.getboolean(
+                'GLOBAL', 'user_sftp_key_from_dns')
         if config.has_option('GLOBAL', 'user_sftp_auth'):
             self.user_sftp_auth = config.get('GLOBAL',
                                              'user_sftp_auth').split()
@@ -1108,14 +1119,23 @@ location.""" % self.config_file
         else:
             self.site_enable_jupyter = False
 
-        self.jupyter_services = {}
+        self.jupyter_services = []
         # Load generated jupyter sections
         for section in config.sections():
             if 'JUPYTER_' in section:
-                self.jupyter_services[section] = {option: config.get(section,
-                                                                     option)
-                                                  for option in
-                                                  config.options(section)}
+                # Allow service_desc to be a file that should be read
+                if config.has_option(section, 'service_desc'):
+                    service_desc = config.get(section, 'service_desc')
+                    if os.path.exists(service_desc) \
+                            and os.path.isfile(service_desc):
+                        content = read_file(service_desc, logger)
+                        if content:
+                            config.set(section, 'service_desc', content)
+
+                self.jupyter_services.append({option: config.get(section,
+                                                                 option)
+                                              for option in
+                                              config.options(section)})
 
         if config.has_option('GLOBAL', 'vgrid_owners'):
             self.vgrid_owners = config.get('GLOBAL', 'vgrid_owners')

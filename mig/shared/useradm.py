@@ -4,7 +4,7 @@
 # --- BEGIN_HEADER ---
 #
 # useradm - user administration functions
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -46,7 +46,8 @@ from shared.defaults import user_db_filename, keyword_auto, ssh_conf_dir, \
     widgets_filename, seafile_ro_dirname, authkeys_filename, \
     authpasswords_filename, authdigests_filename, cert_field_order, \
     davs_conf_dir, twofactor_filename
-from shared.fileio import filter_pickled_list, filter_pickled_dict
+from shared.fileio import filter_pickled_list, filter_pickled_dict, \
+    make_symlink, delete_symlink
 from shared.modified import mark_user_modified
 from shared.refunctions import list_runtime_environments, \
     update_runtimeenv_owner
@@ -56,6 +57,7 @@ from shared.pwhash import make_hash, check_hash, make_digest, check_digest, \
 from shared.resource import resource_add_owners, resource_remove_owners
 from shared.serial import load, dump
 from shared.settings import update_settings, update_profile, update_widgets
+from shared.sharelinks import load_share_links, update_share_link
 from shared.vgrid import vgrid_add_owners, vgrid_remove_owners, \
     vgrid_add_members, vgrid_remove_members
 from shared.vgridaccess import get_resource_map, get_vgrid_map, \
@@ -586,6 +588,58 @@ The %(short_title)s admins
     return user
 
 
+def fix_sharelinks(old_id, client_id, conf_path, db_path, verbose=False):
+    """Update sharelinks left-over from legacy version of edit_user"""
+    user_db = {}
+    if conf_path:
+        if isinstance(conf_path, basestring):
+            configuration = Configuration(conf_path)
+        else:
+            configuration = conf_path
+    else:
+        configuration = get_configuration_object()
+    _logger = configuration.logger
+
+    if verbose:
+        print 'User ID: %s\n' % client_id
+
+    if os.path.exists(db_path):
+        try:
+            if isinstance(db_path, dict):
+                user_db = db_path
+            else:
+                user_db = load_user_db(db_path)
+                if verbose:
+                    print 'Loaded existing user DB from: %s' % db_path
+        except Exception, err:
+            raise Exception('Failed to load user DB: %s' % err)
+
+    if not user_db.has_key(client_id):
+        raise Exception("User DB entry '%s' doesn't exist!" % client_id)
+
+    # Loop through moved sharelinks map pickle and update fs paths
+
+    (load_status, sharelinks) = load_share_links(configuration, client_id)
+    if verbose:
+        print 'Update %d sharelinks' % len(sharelinks)
+    if load_status:
+        for (share_id, share_dict) in sharelinks.items():
+            # Update owner and use generic update helper to replace symlink
+            share_dict['owner'] = client_id
+            (mod_status, err) = update_share_link(share_dict, client_id,
+                                                  configuration, sharelinks)
+            if verbose:
+                if mod_status:
+                    print 'Updated sharelink %s from %s to %s' % (share_id,
+                                                                  old_id,
+                                                                  client_id)
+                elif err:
+                    print 'Could not update owner of %s: %s' % (share_id, err)
+    else:
+        if verbose:
+            print 'Could not load sharelinks: %s' % sharelinks
+
+
 def edit_user(
     client_id,
     changes,
@@ -671,12 +725,26 @@ def edit_user(
 
     new_client_dir = client_id_dir(new_id)
 
+    # NOTE: published archives are linked to a hash based on creator ID.
+    # We first remove any conflicting symlink from previous renames before
+    # renaming user archive dir and creating the new legacy alias afterwards.
+
+    old_arch_home = os.path.join(configuration.freeze_home, client_dir)
+    new_arch_home = os.path.join(configuration.freeze_home, new_client_dir)
+    # Make sure (lazy created) freeze home exists
+    try:
+        os.makedirs(old_arch_home)
+    except Exception, exc:
+        pass
+    delete_symlink(new_arch_home, _logger, allow_missing=True)
+
     # Rename user dirs recursively
 
     for base_dir in (configuration.user_home,
                      configuration.user_settings,
                      configuration.user_cache,
                      configuration.mrsl_files_dir,
+                     configuration.freeze_home,
                      configuration.resource_pending):
 
         old_path = os.path.join(base_dir, client_dir)
@@ -690,6 +758,10 @@ def edit_user(
     if verbose:
         print 'User dirs for %s was successfully renamed!'\
             % client_id
+
+    # Now create freeze_home alias to preserve access to published archives
+
+    make_symlink(new_arch_home, old_arch_home, _logger)
 
     # Update any OpenID symlinks
 
@@ -788,11 +860,34 @@ def edit_user(
         if verbose:
             print 'Could not load runtime env list: %s' % re_list
 
+    # Loop through moved sharelinks map pickle and update fs paths
+
+    (load_status, sharelinks) = load_share_links(configuration, new_id)
+    if verbose:
+        print 'Update %d sharelinks' % len(sharelinks)
+    if load_status:
+        for (share_id, share_dict) in sharelinks.items():
+            # Update owner and use generic update helper to replace symlink
+            share_dict['owner'] = new_id
+            (mod_status, err) = update_share_link(share_dict, new_id,
+                                                  configuration, sharelinks)
+            if verbose:
+                if mod_status:
+                    print 'Updated sharelink %s from %s to %s' % (share_id,
+                                                                  client_id,
+                                                                  new_id)
+                elif err:
+                    print 'Could not update owner of %s: %s' % (share_id, err)
+    else:
+        if verbose:
+            print 'Could not load sharelinks: %s' % sharelinks
+
     # TODO: update remaining user credentials in various locations?
     # * queued and active jobs (tricky due to races)
     # * user settings files?
     # * mrsl files?
     # * user stats?
+    # * triggers?
 
     _logger.info("Renamed user %s to %s" % (client_id, new_id))
     mark_user_modified(configuration, new_id)
@@ -1478,22 +1573,23 @@ def user_password_reminder(user_id, targets, conf_path, db_path,
     return (configuration, fields['password'], addresses, errors)
 
 
-def user_migoid_intro(user_id, targets, conf_path, db_path, verbose=False):
+def user_migoid_notify(user_id, targets, conf_path, db_path, verbose=False,
+                       admin_copy=False):
     """Find notification addresses for user_id and targets"""
     (configuration, fields, addresses, errors) = _user_general_notify(
         user_id, targets, conf_path, db_path, verbose, ['username',
                                                         'full_name'])
-    # Send a copy to site admins
-    admin_addresses = []
-    if configuration.admin_email and \
+    # Optionally send a copy to site admins
+    if admin_copy and configuration.admin_email and \
             isinstance(configuration.admin_email, basestring):
+        admin_addresses = []
         # NOTE: Explicitly separated by ', ' to distinguish Name <abc> form
         parts = configuration.admin_email.split(', ')
         for addr in parts:
             (real_name, plain_addr) = parseaddr(addr.strip())
             if plain_addr:
                 admin_addresses.append(plain_addr)
-    addresses['email'] += admin_addresses
+        addresses['email'] += admin_addresses
     return (configuration, fields['username'], fields['full_name'], addresses,
             errors)
 

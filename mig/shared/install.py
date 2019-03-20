@@ -4,7 +4,7 @@
 # --- BEGIN_HEADER ---
 #
 # install - MiG server install helpers
-# Copyright (C) 2003-2018  The MiG Project lead by Brian Vinter
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -115,15 +115,16 @@ def template_insert(template_file, insert_identifiers, unique=False):
             f_index = [i for i in range(
                 len(contents)) if variable in contents[i]][0]
         except IndexError, err:
-            print("Template insert, Identifer: %s not found in %s: %s" % (variable,
-                                                                          template_file,
-                                                                          err))
+            print(
+                "Template insert, Identifer: %s not found in %s: %s" % (variable,
+                                                                        template_file,
+                                                                        err))
             return False
 
         if isinstance(value, basestring):
             if unique and [line for line in contents if value in line]:
                 break
-            contents.insert(f_index+1, value)
+            contents.insert(f_index + 1, value)
         elif isinstance(value, list):
             for v in value:
                 if unique and [line for line in contents if v in line]:
@@ -171,9 +172,10 @@ def template_remove(template_file, remove_pattern):
         f_indexes = [i for i in range(
             len(contents)) if remove_pattern in contents[i]]
     except IndexError, err:
-        print("Template remove, Identifer: %s not found in %s: %s" % (remove_pattern,
-                                                                      template_file,
-                                                                      err))
+        print(
+            "Template remove, Identifer: %s not found in %s: %s" % (remove_pattern,
+                                                                    template_file,
+                                                                    err))
         return False
 
     # Remove in reverse
@@ -229,6 +231,7 @@ def generate_confs(
     wsgi_procs='10',
     enable_gdp='False',
     enable_jobs='True',
+    enable_resources='True',
     enable_events='True',
     enable_sharelinks='True',
     enable_transfers='True',
@@ -253,6 +256,7 @@ def generate_confs(
     dhparams_path='',
     daemon_keycert='',
     daemon_pubkey='',
+    daemon_pubkey_from_dns='False',
     daemon_show_address='',
     alias_field='',
     signup_methods='extcert',
@@ -264,10 +268,10 @@ def generate_confs(
     public_port=default_http_port,
     public_alias_port=default_https_port,
     mig_cert_port=default_https_port,
-    ext_cert_port=default_https_port+1,
-    mig_oid_port=default_https_port+3,
-    ext_oid_port=default_https_port+2,
-    sid_port=default_https_port+4,
+    ext_cert_port=default_https_port + 1,
+    mig_oid_port=default_https_port + 3,
+    ext_oid_port=default_https_port + 2,
+    sid_port=default_https_port + 4,
     user_clause='User',
     group_clause='Group',
     listen_clause='#Listen',
@@ -297,7 +301,7 @@ def generate_confs(
     user_dict['__JUPYTER_DEFS__'] = ''
     user_dict['__JUPYTER_OPENIDS__'] = ''
     user_dict['__JUPYTER_REWRITES__'] = ''
-    user_dict['__JUPYTER_PROXIES__'] = '' 
+    user_dict['__JUPYTER_PROXIES__'] = ''
     user_dict['__JUPYTER_SECTIONS__'] = ''
     user_dict['__USER__'] = user
     user_dict['__GROUP__'] = group
@@ -328,6 +332,7 @@ def generate_confs(
     user_dict['__WSGI_PROCS__'] = wsgi_procs
     user_dict['__ENABLE_GDP__'] = enable_gdp
     user_dict['__ENABLE_JOBS__'] = enable_jobs
+    user_dict['__ENABLE_RESOURCES__'] = enable_resources
     user_dict['__ENABLE_EVENTS__'] = enable_events
     user_dict['__ENABLE_SHARELINKS__'] = enable_sharelinks
     user_dict['__ENABLE_TRANSFERS__'] = enable_transfers
@@ -366,6 +371,7 @@ def generate_confs(
     user_dict['__DAEMON_KEYCERT_SHA256__'] = ''
     user_dict['__DAEMON_PUBKEY_MD5__'] = ''
     user_dict['__DAEMON_PUBKEY_SHA256__'] = ''
+    user_dict['__DAEMON_PUBKEY_FROM_DNS__'] = daemon_pubkey_from_dns
     user_dict['__DAEMON_SHOW_ADDRESS__'] = daemon_show_address
     user_dict['__ALIAS_FIELD__'] = alias_field
     user_dict['__SIGNUP_METHODS__'] = signup_methods
@@ -557,20 +563,20 @@ cert, oid and sid based https!
 
         # Dynamic apache configuration replacement lists
         jupyter_sections, jupyter_proxies, jupyter_defs, \
-             jupyter_openids, jupyter_rewrites = [], [], [], [], []
+            jupyter_openids, jupyter_rewrites = [], [], [], [], []
         services = user_dict['__JUPYTER_SERVICES__'].split()
 
         try:
             descs = ast.literal_eval(jupyter_services_desc)
         except SyntaxError, err:
             print 'Error: jupyter_services_desc ' \
-             'could not be intepreted correctly. Double check that your ' \
-             'formatting is correct, a dictionary formatted string is expected.'
+                'could not be intepreted correctly. Double check that your ' \
+                'formatting is correct, a dictionary formatted string is expected.'
             sys.exit(1)
 
         if not isinstance(descs, dict):
             print 'Error: %s was incorrectly formatted,' \
-             ' expects a string formatted as a dictionary' % descs
+                ' expects a string formatted as a dictionary' % descs
             sys.exit(1)
 
         service_hosts = {}
@@ -579,10 +585,10 @@ cert, oid and sid based https!
             name_hosts = service.split(".", 1)
             if len(name_hosts) != 2:
                 print 'Error: You have not correctly formattet ' \
-                 'the jupyter_services parameter, ' \
-                 'expects --jupyter_services="service_name.' \
-                 'http(s)://jupyterhost-url-or-ip ' \
-                 'other_service.http(s)://jupyterhost-url-or-ip"'
+                    'the jupyter_services parameter, ' \
+                    'expects --jupyter_services="service_name.' \
+                    'http(s)://jupyterhost-url-or-ip ' \
+                    'other_service.http(s)://jupyterhost-url-or-ip"'
                 sys.exit(1)
             name, host = name_hosts[0], name_hosts[1]
             try:
@@ -777,6 +783,13 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
 
     # Auto-fill fingerprints if daemon key is set
     if user_dict['__DAEMON_KEYCERT__']:
+        if not os.path.isfile(os.path.expanduser("%(__DAEMON_KEYCERT__)s" %
+                                                 user_dict)):
+            print "ERROR: requested daemon keycert file not found!"
+            print """You can create it with:
+openssl genrsa -out %(__DAEMON_KEYCERT__)s 2048""" % user_dict
+            sys.exit(1)
+
         key_path = os.path.expanduser(user_dict['__DAEMON_KEYCERT__'])
         openssl_cmd = ["openssl", "x509", "-noout", "-fingerprint", "-sha256",
                        "-in", key_path]
@@ -791,6 +804,13 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
                   (key_path, exc)
         user_dict['__DAEMON_KEYCERT_SHA256__'] = daemon_keycert_sha256
     if user_dict['__DAEMON_PUBKEY__']:
+        if not os.path.isfile(os.path.expanduser("%(__DAEMON_PUBKEY__)s" %
+                                                 user_dict)):
+            print "ERROR: requested daemon pubkey file not found!"
+            print """You can create it with:
+ssh-keygen -f %(__DAEMON_KEYCERT__)s -y > %(__DAEMON_PUBKEY__)s""" % user_dict
+            sys.exit(1)
+
         pubkey_path = os.path.expanduser(user_dict['__DAEMON_PUBKEY__'])
         try:
             pubkey_fd = open(pubkey_path)
@@ -804,8 +824,8 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
                 pubkey.strip().split()[1].encode('ascii'))
             raw_md5 = hashlib.md5(b64_key).hexdigest()
             # reformat into colon-spearated octets
-            daemon_pubkey_md5 = ':'.join(a+b for a, b in zip(raw_md5[::2],
-                                                             raw_md5[1::2]))
+            daemon_pubkey_md5 = ':'.join(a + b for a, b in zip(raw_md5[::2],
+                                                               raw_md5[1::2]))
             raw_sha256 = hashlib.sha256(b64_key).digest()
             daemon_pubkey_sha256 = base64.b64encode(raw_sha256).rstrip('=')
         except Exception, exc:
@@ -871,25 +891,31 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
             user_dict['__PUBLIC_ALIAS_LISTEN__'] = "# %s" % listen_clause
 
     if mig_cert_fqdn:
-        user_dict['__MIG_CERT_URL__'] = 'https://%(__MIG_CERT_FQDN__)s' % user_dict
+        user_dict['__MIG_CERT_URL__'] = 'https://%(__MIG_CERT_FQDN__)s' % \
+                                        user_dict
         if str(mig_cert_port) != str(default_https_port):
             print "adding explicit mig cert port (%s)" % [mig_cert_port,
                                                           default_https_port]
-            user_dict['__MIG_CERT_URL__'] += ':%(__MIG_CERT_PORT__)s' % user_dict
+            user_dict['__MIG_CERT_URL__'] += ':%(__MIG_CERT_PORT__)s' % \
+                                             user_dict
     if ext_cert_fqdn:
-        user_dict['__EXT_CERT_URL__'] = 'https://%(__EXT_CERT_FQDN__)s' % user_dict
+        user_dict['__EXT_CERT_URL__'] = 'https://%(__EXT_CERT_FQDN__)s' % \
+                                        user_dict
         if str(ext_cert_port) != str(default_https_port):
             print "adding explicit ext cert port (%s)" % [ext_cert_port,
                                                           default_https_port]
-            user_dict['__EXT_CERT_URL__'] += ':%(__EXT_CERT_PORT__)s' % user_dict
+            user_dict['__EXT_CERT_URL__'] += ':%(__EXT_CERT_PORT__)s' % \
+                                             user_dict
     if mig_oid_fqdn:
-        user_dict['__MIG_OID_URL__'] = 'https://%(__MIG_OID_FQDN__)s' % user_dict
+        user_dict['__MIG_OID_URL__'] = 'https://%(__MIG_OID_FQDN__)s' % \
+                                       user_dict
         if str(mig_oid_port) != str(default_https_port):
             print "adding explicit ext oid port (%s)" % [mig_oid_port,
                                                          default_https_port]
             user_dict['__MIG_OID_URL__'] += ':%(__MIG_OID_PORT__)s' % user_dict
     if ext_oid_fqdn:
-        user_dict['__EXT_OID_URL__'] = 'https://%(__EXT_OID_FQDN__)s' % user_dict
+        user_dict['__EXT_OID_URL__'] = 'https://%(__EXT_OID_FQDN__)s' % \
+                                       user_dict
         if str(ext_oid_port) != str(default_https_port):
             print "adding explicit org oid port (%s)" % [ext_oid_port,
                                                          default_https_port]
@@ -965,19 +991,23 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
         ("apache-MiG-jupyter-def-template.conf", "MiG-jupyter-def.conf"),
         ("apache-MiG-jupyter-openid-template.conf", "MiG-jupyter-openid.conf"),
         ("apache-MiG-jupyter-proxy-template.conf", "MiG-jupyter-proxy.conf"),
-        ("apache-MiG-jupyter-rewrite-template.conf", "MiG-jupyter-rewrite.conf"),
+        ("apache-MiG-jupyter-rewrite-template.conf",
+         "MiG-jupyter-rewrite.conf"),
         ("trac-MiG-template.ini", "trac.ini"),
         ("logrotate-MiG-template", "logrotate-migrid"),
         ("MiGserver-template.conf", "MiGserver.conf"),
         ("static-skin-template.css", "static-skin.css"),
         ("index-template.html", "index.html"),
-        ("openssh-MiG-sftp-subsys-template.conf", "sshd_config-MiG-sftp-subsys"),
-        ("fail2ban-MiG-daemons-filter-template.conf", "MiG-daemons-filter.conf"),
+        ("openssh-MiG-sftp-subsys-template.conf",
+         "sshd_config-MiG-sftp-subsys"),
+        ("fail2ban-MiG-daemons-filter-template.conf",
+         "MiG-daemons-filter.conf"),
         ("fail2ban-MiG-daemons-handshake-filter-template.conf",
          "MiG-daemons-handshake-filter.conf"),
         ("fail2ban-MiG-daemons-pw-crack-filter-template.conf",
          "MiG-daemons-pw-crack-filter.conf"),
-        ("fail2ban-sshd-pw-crack-filter-template.conf", "sshd-pw-crack-filter.conf"),
+        ("fail2ban-sshd-pw-crack-filter-template.conf",
+         "sshd-pw-crack-filter.conf"),
         ("fail2ban-MiG-daemons-jail-template.conf", "MiG-daemons-jail.conf"),
         # service script for MiG daemons
         ("migrid-init.d-rh-template", "migrid-init.d-rh"),
@@ -985,6 +1015,8 @@ openssl dhparam 2048 -out %(__DHPARAMS_PATH__)s""" % user_dict
         # cron helpers
         ("migerrors-template.sh.cronjob", "migerrors"),
         ("migsftpmon-template.sh.cronjob", "migsftpmon"),
+        ("migimportdoi-template.sh.cronjob", "migimportdoi"),
+        ("mignotifyexpire-template.sh.cronjob", "mignotifyexpire"),
         ("migstateclean-template.sh.cronjob", "migstateclean"),
         ("migcheckssl-template.sh.cronjob", "migcheckssl"),
     ]
@@ -1095,14 +1127,18 @@ sudo cp %(destination)s/MiG-daemons-jail.conf \\
 After making sure they fit your site you can start the fail2ban service with:
 sudo service fail2ban restart
 
-The migstateclean and migerrors files are cron scripts to automatically
-clean up state files and grep for important errors in all MiG log files.
+The migstateclean, migerrors, migsftpmon, migimportdoi and mignotifyexpire
+files are cron scripts to automatically clean up state files, grep for
+important errors in all MiG log files, warn about possible sftp crypto issues,
+download DOI metadata from upstream provider and inform local certificate and
+openid users about upcoming account expiry.
 You can install them with:
-chmod 755 %(destination)s/{migstateclean,migerrors}
-sudo cp %(destination)s/{migstateclean,migerrors} /etc/cron.daily/
+chmod 755 %(destination)s/mig{stateclean,errors,sftpmon,importdoi,notifyexpire}
+sudo cp %(destination)s/mig{stateclean,errors,sftpmon,importdoi,notifyexpire} \\
+        /etc/cron.daily/
 
-The migcheckssl file is cron scripts that automatically checks for 
-LetsEncrypt certificate renewal. 
+The migcheckssl file is cron scripts that automatically checks for
+LetsEncrypt certificate renewal.
 You can install it with:
 chmod 700 %(destination)s/migcheckssl
 sudo cp %(destination)s/migcheckssl /etc/cron.daily
@@ -1247,6 +1283,7 @@ def create_user(
     enable_wsgi = 'True'
     wsgi_procs = '5'
     enable_jobs = 'True'
+    enable_resources = 'True'
     enable_events = 'True'
     enable_sharelinks = 'True'
     enable_transfers = 'True'
@@ -1268,6 +1305,7 @@ def create_user(
     dhparams_path = ''
     daemon_keycert = ''
     daemon_pubkey = ''
+    daemon_pubkey_from_dns = 'False'
     daemon_show_address = ''
     alias_field = 'email'
     hg_path = '/usr/bin/hg'
@@ -1352,6 +1390,7 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
         enable_wsgi,
         wsgi_procs,
         enable_jobs,
+        enable_resources,
         enable_events,
         enable_sharelinks,
         enable_transfers,
@@ -1376,6 +1415,7 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
         dhparams_path,
         daemon_keycert,
         daemon_pubkey,
+        daemon_pubkey_from_dns,
         daemon_show_address,
         alias_field,
         hg_path,
@@ -1427,7 +1467,8 @@ echo '/home/%s/state/sss_home/MiG-SSS/hda.img      /home/%s/state/sss_home/mnt  
     print 'sudo cp -f -d %s %s/' % (apache_ports_conf, apache_dir)
     print 'sudo cp -f -d %s %s/conf.d/' % (apache_mig_conf, apache_dir)
     print 'sudo mkdir -p %s/conf.extras.d' % (apache_dir)
-    print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_def, apache_dir)
+    print 'sudo cp -f -d %s %s/conf.extras.d/' % (
+        apache_jupyter_def, apache_dir)
     print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_openid,
                                                   apache_dir)
     print 'sudo cp -f -d %s %s/conf.extras.d/' % (apache_jupyter_proxy,
