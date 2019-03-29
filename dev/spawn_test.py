@@ -42,7 +42,7 @@ def main(args):
         print("Spawn user {}".format(user.get('username', '')))
         if args.global_pw:
             user['password'] = args.global_pw
-        with requests.Session() as session:
+        with requests.session() as session:
             session.verify = False
             # Login to migrid
             result = session.get(MIGRID_URL)

@@ -3,12 +3,6 @@ from ldap3.utils.log import set_library_log_detail_level, EXTENDED, BASIC
 from ldap3 import Server, Connection, ObjectDef, BASE, ALL_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES
 
 
-def rec_create_containers(containers):
-    container = containers.pop(0)
-    if containers:
-        rec_create_containers(containers)
-
-
 if __name__ == '__main__':
     logging.basicConfig(filename='client_apllication.log', level=logging.DEBUG)
     set_library_log_detail_level(EXTENDED)
