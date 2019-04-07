@@ -1,8 +1,9 @@
+from ldap3.utils.log import set_library_log_detail_level, BASIC
 import logging
 import copy
 from tornado import gen
-from ldap3 import Server, Connection, MODIFY_DELETE, MODIFY_ADD, BASE
-from ldap3.utils.log import set_library_log_detail_level, BASIC
+from ldap3 import Server, Connection, MODIFY_DELETE, MODIFY_ADD, BASE, ALL_ATTRIBUTES, \
+    ALL_OPERATIONAL_ATTRIBUTES
 from ldap3.core.exceptions import LDAPException
 from traitlets import Unicode, Dict, List, Tuple
 from traitlets.config import LoggingConfigurable
@@ -11,10 +12,13 @@ from .ldap import add_dn, search_for, modify_dn
 from .utils import recursive_format
 
 
-LDAP_SEARCH_ATTRIBUTE = '1'
-SPAWNER_LDAP_OBJECT_ATTRIBUTE = '2'
-DYNAMIC_ATTRIBUTE_METHODS = (LDAP_SEARCH_ATTRIBUTE,
-                             SPAWNER_LDAP_OBJECT_ATTRIBUTE)
+SPAWNER_SUBMIT_DATA = '1'
+LDAP_SEARCH_ATTRIBUTE_QUERY = '2'
+DYNAMIC_ATTRIBUTE_METHODS = (SPAWNER_SUBMIT_DATA,
+                             LDAP_SEARCH_ATTRIBUTE_QUERY)
+
+INCREMENT_ATTRIBUTE = '1'
+SEARCH_RESULT_OPERATIONS = (INCREMENT_ATTRIBUTE)
 
 
 class LDAP(LoggingConfigurable):
@@ -59,32 +63,35 @@ class LDAP(LoggingConfigurable):
      and can have duplicates in the DIT with the same object classes
     """))
 
-    submit_spawner_attribute = Unicode(trait=Unicode(), allow_none=True,
+    submit_spawner_attribute = Unicode(trait=Unicode(),
+                                       allow_none=False,
                                        config=True,
                                        default_value=None,
                                        help=dedent("""
-    The attribute string that is used to access the LDAP object string
-     in the passed in spawner object.
-    This string is subsequently processed by replace_object_with
-     to prepared it to be submitted to the LDAP DIT.
+    A . seperated string that contains the property path to access
+    the LDAP object string in the passed in spawner object.
+
+    The resulting attribute can subsequently be prepared by
+    submit_spawner_attribute_keys lookup, if the attribute contains
+    a dictionary.
+
+    The final extracted submit value is subsequently processed
+     by replace_object_with before it is submitted to the LDAP DIT.
+    E.g:
+        'user.data.ldap_object_distinguish_name_string_or_dict'
     """))
 
-    # submit_user_auth_state_key = Unicode(trait=Unicode(), allow_none=True,
-    #                                      config=True,
-    #                                      default_value=None,
-    #                                      help=dedent("""
-    # The key used to extract the data from the user objects auth_state dictionary.
-    # This string is subsequently processed by replace_object_with
-    #  to prepared it to be submitted to the LDAP DIT.
-    # """))
+    submit_spawner_attribute_keys = Tuple(trait=Unicode(),
+                                          allow_none=True,
+                                          config=True,
+                                          default_value=(),
+                                          help=dedent("""
+    A tuple containing the key's lookup path to extract the
+    submit value from the identified dictionary as defined by
+    submit_spawner_attribute.
 
-    submit_user_auth_state_selector = Tuple(trait=Unicode(),
-                                            allow_none=True,
-                                            config=True,
-                                            default_value=(),
-                                            help=dedent("""
-    A tuple of values that are used to select the object value that should be 
-    submitted to the LDAP DIT in the user's auth_state dictionary.
+    E.g:
+        ('ldap_object_dict_key',)
     """))
 
     replace_object_with = Dict(trait=Unicode(), traits={Unicode(): Unicode()},
@@ -117,7 +124,15 @@ class LDAP(LoggingConfigurable):
                                     default_value=[{}],
                                     help=dedent("""
     A list of expected variables to be extracted and prepared from the base_dn LDAP DIT,
-    generates the attributes expected by LDAP_SEARCH_ATTRIBUTE
+    generates the attributes expected by LDAP_SEARCH_ATTRIBUTE_QUERY
+    """))
+
+    search_result_operation = Dict(trait=Unicode(),
+                                   traits={Unicode(): Dict()},
+                                   default_value={},
+                                   help=dedent("""
+    A dict of attribute operations that should be carried out after
+    search_attribute_queries has been retrived.
     """))
 
     set_spawner_attributes = Dict(trait=Unicode(), traits={Unicode(): Unicode()},
@@ -199,19 +214,28 @@ class ConnectionManager:
     def get_response(self):
         return self.connection.response
 
+    def get_response_attributes(self):
+        entry_attributes = {}
+        resp = self.get_response()
+        dn = None
+        for entry in resp:
+            if not dn:
+                dn = entry['dn']
+            if 'attributes' in entry:
+                # Multiple dn's, fail
+                if dn != entry['dn']:
+                    return None
+                entry_attributes.update({entry['dn']: entry['attributes']})
+        return entry_attributes[dn]
+
     def get_result(self):
         return self.connection.result
 
 
-def rec_has_attr(obj, attr):
-    attributes = attr.split('.')
-    for attr in attributes:
-        has_attr = hasattr(obj, attr)
-        if not has_attr:
-            return False
-        obj = getattr(obj, attr)
-
-    return True
+def get_dict_key(input_dict, attr):
+    if attr not in input_dict:
+        return None
+    return input_dict[attr]
 
 
 def rec_get_attr(obj, attr):
@@ -221,7 +245,6 @@ def rec_get_attr(obj, attr):
         if not has_attr:
             return False
         obj = getattr(obj, attr)
-
     return obj
 
 
@@ -235,75 +258,138 @@ def tuple_dict_select(select_tuple, select_dict):
     return selected
 
 
+def perform_search_result_operation(logger, conn_manager, base_dn,
+                                    operation, attr_key, attr_val):
+    if 'action' not in operation:
+        logger.error("LDAP - missing action key in: {}".format(
+            operation
+        ))
+        return False
+
+    if operation['action'] not in SEARCH_RESULT_OPERATIONS:
+        logger.error("LDAP - Illegal search_result_operation: {}"
+                     " must be one of: {}".format(
+                         operation['action'], SEARCH_RESULT_OPERATIONS
+                     ))
+        return False
+    return_value = None
+    if operation['action'] == INCREMENT_ATTRIBUTE:
+        valid_types = (int, float)
+        if not isinstance(attr_val, valid_types):
+            logger.error("LDAP - Invalid datatype: {} supplied to operation: {}, "
+                         "allowed are: {}".format(type(attr_val),
+                                                  INCREMENT_ATTRIBUTE,
+                                                  valid_types))
+            return False
+        if 'modify_dn' not in operation:
+            logger.error("LDAP - Missing required modify_dn key in: {}".format(
+                operation
+            ))
+            return False
+        return_value = attr_val + 1
+
+        # Atomic increment
+        dn = operation['modify_dn']
+        success = modify_dn(conn_manager.get_connection(),
+                            dn, {attr_key: [(MODIFY_DELETE, [attr_val]),
+                                            (MODIFY_ADD, [return_value])]})
+        if not success:
+            logger.error("LDAP - failed to increment attr_key: {} "
+                         "in LDAP DIT with: {}".format(attr_key, dn))
+            return False
+
+    return return_value
+
+
+def get_interpolated_dynamic_attributes(logger, sources, dynamic_attributes):
+    set_attributes = {}
+    for attr_key, attr_val in dynamic_attributes.items():
+        # Check sources for LDAP_SEARCH_ATTRIBUTE_QUERY key response with values
+        val = None
+        if attr_val == LDAP_SEARCH_ATTRIBUTE_QUERY:
+            if LDAP_SEARCH_ATTRIBUTE_QUERY in sources \
+                    and sources[LDAP_SEARCH_ATTRIBUTE_QUERY]:
+                attribute = get_dict_key(sources[LDAP_SEARCH_ATTRIBUTE_QUERY],
+                                         attr_key)
+                val = attribute
+        if attr_val == SPAWNER_SUBMIT_DATA:
+            if SPAWNER_SUBMIT_DATA in sources \
+                    and sources[SPAWNER_SUBMIT_DATA]:
+                attribute = get_dict_key(sources[SPAWNER_SUBMIT_DATA],
+                                         attr_key)
+                val = attribute
+        if not val:
+            logger.error("LDAP - Missing {} in {} which is required to"
+                         " get_interpolated_dynamic_attributes".format(attr_val,
+                                                                       sources))
+            return False
+        set_attributes[attr_key] = val
+    return set_attributes
+
+
+def update_spawner_attributes(spawner, spawner_attributes):
+    for spawner_attr, spawner_value in spawner_attributes.items():
+        if hasattr(spawner, spawner_attr):
+            attr = getattr(spawner, spawner_attr)
+            if isinstance(attr, dict):
+                attr.update(spawner_value)
+            if isinstance(attr, list) or isinstance(attr, str):
+                setattr(spawner, spawner_attr, spawner_value)
+
+
 @gen.coroutine
 def setup_ldap_user(spawner):
     instance = LDAP()
-    # spawner.log.info("LDAP - spawn config {}".format(instance.config.path))
-    # loader = PyFileConfigLoader(filename, path=spawner.config.path)
-    # Ensure default config is not overridden
-    # for attr, _ in instance.class_own_traits().items():
-    #     setattr(instance, attr, copy.deepcopy(getattr(instance, attr)))
 
     # TODO, copy entire default config options dynamically
     instance.dynamic_attributes = copy.deepcopy(instance.dynamic_attributes)
     instance.set_spawner_attributes = copy.deepcopy(instance.set_spawner_attributes)
     instance.object_attributes = copy.deepcopy(instance.object_attributes)
+    instance.search_result_operation = copy.deepcopy(instance.search_result_operation)
 
     logging.basicConfig(filename='client_application.log', level=logging.DEBUG)
     set_library_log_detail_level(BASIC)
 
-    if not instance.submit_spawner_attribute and \
-            not instance.submit_user_auth_state_selector:
+    if not instance.submit_spawner_attribute:
         spawner.log.error(
-            "LDAP - either submit_spawner_attribute or submit_user_auth_state_selector "
+            "LDAP - either submit_spawner_attribute "
             "has to define the object which is to be submitted to the LDAP DIT"
         )
         return False
 
-    if instance.submit_spawner_attribute and instance.submit_user_auth_state_selector:
-        spawner.log.error(
-            "LDAP - both submit_spawner_attribute and submit_user_auth_state_selector "
-            "can't both be set, either has to define what object "
-            "should be submitted to the LDAP DIT"
-        )
+    ldap_data = rec_get_attr(spawner, instance.submit_spawner_attribute)
+    if not ldap_data:
+        spawner.log.error("LDAP - The spawner object: {} did not have "
+                          "the specified attribute: {}".format(
+                              spawner.user.__dict__, instance.submit_spawner_attribute))
         return False
 
-    ldap_data = None
-    if instance.submit_spawner_attribute:
-        # Parse spawner username attribute
-        ldap_data = rec_get_attr(spawner, instance.submit_spawner_attribute)
-        if not ldap_data:
-            spawner.log.error("LDAP - The spawner object: {} did not have "
-                              "the specified attribute: {}".format(
-                                  spawner, instance.submit_spawner_attribute))
+    if isinstance(ldap_data, dict):
+        if not instance.submit_spawner_attribute_keys:
+            spawner.log.error("LDAP - Found attribute: {} in spawner object: {}, "
+                              "of type: {}, requires that submit_spawner"
+                              "_attribute_keys"
+                              "is set to extract the value from the "
+                              "dictionary".format(instance.submit_spawner_attribute,
+                                                  spawner, type(ldap_data)))
             return False
 
-    if instance.submit_user_auth_state_selector:
-        auth_state = yield spawner.user.get_auth_state()
-        if not auth_state:
-            spawner.log.error("LDAP - The user's auth_state seems to not be "
-                              "correctly configured, the state is: {}".format(auth_state)
-                              )
-            return False
-
-        ldap_data = tuple_dict_select(instance.submit_user_auth_state_selector,
-                                      auth_state)
-        if not ldap_data:
-            spawner.log.error("LDAP - Failed to use the submit_user_auth_state_selector: "
-                              "{} to find a value in the user's auth_state "
-                              "dictionary: {}".format(
-                                  instance.submit_user_auth_state_selector,
-                                  auth_state
+        new_ldap_data = tuple_dict_select(
+            instance.submit_spawner_attribute_keys,
+            ldap_data)
+        if not new_ldap_data:
+            spawner.log.error("LDAP - Failed to extract the specified dict tuple "
+                              "string: {} from dict: {}".format(
+                                  instance.submit_spawner_attribute_keys,
+                                  ldap_data
                               ))
             return False
-        # ldap_data = auth_state[instance.submit_user_auth_state_key]
-        # if not ldap_data:
-        #     spawner.log.error("LDAP - The auth_state dictionary contained the "
-        #                       "key: {} but it's value is: {}".format(
-        #                           instance.submit_user_auth_state_key,
-        #                           ldap_data)
-        #                       )
-        #     return False
+
+        ldap_data = new_ldap_data
+        if not isinstance(ldap_data, str):
+            spawner.log.error("LDAP - {} is of incorrect type, requires: {} "
+                              "found: {}".format(ldap_data, str, type(ldap_data)))
+            return False
 
     # Parse spawner user LDAP string to be parsed for submission
     conn_manager = ConnectionManager(instance.url,
@@ -363,41 +449,80 @@ def setup_ldap_user(spawner):
                          "for attribute setup".format(ldap_data, ldap_dict))
 
         # LDAP, check for unique attributes that should not be duplicated
-        if instance.unique_object_attributes:
-            search_filter = ''
-            # objectclasses search filter
-            if instance.object_classes:
-                search_filter = '(&{})'.format(
-                    ''.join(['(objectclass={})'.format(object_class)
-                             for object_class in
-                             instance.object_classes])
-                )
 
+        search_filter = ''
+        # objectclasses search filter
+        if instance.object_classes:
+            search_filter = '(&{})'.format(
+                ''.join(['(objectclass={})'.format(object_class)
+                            for object_class in
+                            instance.object_classes])
+            )
+
+        if instance.unique_object_attributes:
+            # Specific attributes to check for existing dn
             search_attributes = ''.join(['({}={})'.format(attr.lower(),
                                                           ldap_dict[attr])
                                          for attr in instance.unique_object_attributes
                                          if attr in ldap_dict])
+        else:
+            # Use every attribute to check for existing dn
+            search_attributes = ''.join(['({}={})'.format(ldap_key, ldap_value)
+                                         for ldap_key, ldap_value in ldap_dict.items()])
 
-            # unique attributes search filter
-            if search_filter:
-                # strip last )
-                search_filter = search_filter[:-1]
-                search_filter += search_attributes + ')'
-            else:
-                search_filter = '(&{})'.format(search_attributes)
+        # unique attributes search filter
+        if search_filter:
+            # strip last )
+            search_filter = search_filter[:-1]
+            search_filter += search_attributes + ')'
+        else:
+            search_filter = '(&{})'.format(search_attributes)
 
-            spawner.log.debug(
-                "LDAP - unique_check, search_filter: {}".format(search_filter))
-            # Check whether user already exists
-            success = search_for(conn_manager.get_connection(),
-                                 instance.base_dn,
-                                 search_filter)
-            if success:
-                spawner.log.error("LDAP - {} already exist, response {}".format(
-                    ldap_dict, conn_manager.get_response())
-                )
+        spawner.log.debug(
+            "LDAP - unique_check, search_filter: {}".format(search_filter))
+        # Check whether dn already exists
+        success = search_for(conn_manager.get_connection(),
+                             instance.base_dn,
+                             search_filter,
+                             attributes=ALL_ATTRIBUTES)
+        if success:
+            spawner.log.info("LDAP - {} already exist, response {}".format(
+                ldap_dict, conn_manager.get_response())
+            )
+
+            response = conn_manager.get_response()
+            if len(response) > 1:
+                spawner.log.error("LDAP - multiple entries: {} "
+                                  "were found with: {}".format(response, search_filter))
                 return False
 
+            attributes = conn_manager.get_response_attributes()
+            if not attributes:
+                spawner.log.error("LDAP - No attributes were returned from "
+                                  "existing dn: {} with search_filer: {}".format(
+                                      ldap_data, search_filter))
+                return False
+
+            spawner.log.info("LDAP - Retrived attributes {}".format(attributes))
+            # Extract attributes from existing object
+            sources = {LDAP_SEARCH_ATTRIBUTE_QUERY: attributes,
+                       SPAWNER_SUBMIT_DATA: ldap_dict}
+            instance.dynamic_attributes = get_interpolated_dynamic_attributes(
+                spawner.log, sources, instance.dynamic_attributes
+            )
+            if not instance.dynamic_attributes:
+                spawner.log.error("LDAP - Failed to setup dynamic_attributes: {} "
+                                  "with attribute_dict: {}".format(
+                                      instance.dynamic_attributes,
+                                      attributes
+                                  ))
+                return False
+            # Setup set_spawner_attributes
+            recursive_format(instance.set_spawner_attributes, instance.dynamic_attributes)
+            update_spawner_attributes(spawner, instance.set_spawner_attributes)
+            return True
+
+        # Create new DIT entry
         # Get extract variables
         for q in instance.search_attribute_queries:
             query = copy.deepcopy(q)
@@ -419,76 +544,50 @@ def setup_ldap_user(spawner):
 
             # get responses
             response = conn_manager.get_response()
-            if response:
-                spawner.log.info("LDAP - extract attributes "
-                                 "search response {}".format(response))
-                for entry in response:
-                    spawner.log.debug("LDAP - search response entry {}".format(entry))
-                    if 'attributes' in entry:
-                        ldap_dict.update(entry['attributes'])
-
-        if 'uidNumber' in ldap_dict:
-            uidNumber = ldap_dict['uidNumber']
-            nextUidNumber = ldap_dict['nextUidNumber'] = uidNumber + 1
-
-            # Atomic increment uidNumber
-            success = modify_dn(conn_manager.get_connection(),
-                                ','.join(['cn=uidNext', instance.base_dn]),
-                                {'uidNumber': [(MODIFY_DELETE, [uidNumber]),
-                                               (MODIFY_ADD, [nextUidNumber])]})
-            if not success:
-                spawner.log.error("LDAP - failed to modify uidnumber")
+            if len(response) > 1:
+                spawner.log.error("LDAP - multiple entries: {} "
+                                  "were found with: {}".format(response, search_filter))
                 return False
 
-        # Prepare required dynamic attributes
-        for attr_key, attr_val in instance.dynamic_attributes.items():
-            # expected user_dict attributes
-            if attr_val == SPAWNER_LDAP_OBJECT_ATTRIBUTE:
-                if attr_key not in ldap_dict:
-                    spawner.log.error("LDAP - expected username attribute: {}"
-                                      " was not present in username object {}".format(
-                                          attr_key, ldap_dict
-                                      ))
-                    return False
-                instance.dynamic_attributes[attr_key] = ldap_dict[attr_key]
-            # expected ldap extracted attributes
-            if attr_val == LDAP_SEARCH_ATTRIBUTE:
-                if attr_key not in ldap_dict:
-                    spawner.log.error("LDAP - expected ldap attribute: {}"
-                                      " was not present in ldap search object {}".format(
-                                          attr_key, ldap_dict
-                                      ))
-                    return False
-                instance.dynamic_attributes[attr_key] = ldap_dict[attr_key]
+            sources = {}
+            attributes = conn_manager.get_response_attributes()
+            spawner.log.debug("LDAP - search_attribute_queries "
+                              "attributes: {}".format(attributes))
+            if attributes:
+                # Perform search_result_operations
+                for attr_key, attr_val in attributes.items():
+                    if attr_key in instance.search_result_operation:
+                        post_operation_val = perform_search_result_operation(
+                            spawner.log,
+                            conn_manager,
+                            instance.base_dn,
+                            instance.search_result_operation[attr_key],
+                            attr_key,
+                            attr_val)
+                        if not post_operation_val:
+                            return False
+                        attributes[attr_key] = post_operation_val
+                        sources.update({LDAP_SEARCH_ATTRIBUTE_QUERY:
+                                        {attr_key: post_operation_val}})
+                ldap_dict.update(attributes)
 
-        # Format user provided variables
+        # Prepare required dynamic attributes
+        sources.update({SPAWNER_SUBMIT_DATA: ldap_dict})
+        instance.dynamic_attributes = get_interpolated_dynamic_attributes(
+            spawner.log, sources, instance.dynamic_attributes
+        )
+
+        if not instance.dynamic_attributes:
+            spawner.log.error("LDAP - Failed to setup dynamic_attributes: {}"
+                              "with attribute_dict: {}".format(
+                                  instance.dynamic_attributes, ldap_dict
+                              ))
+            return False
+
+        # Format dn provided variables
         recursive_format(instance.set_spawner_attributes, instance.dynamic_attributes)
         recursive_format(instance.object_attributes, instance.dynamic_attributes)
-        # for dyn_key, dyn_val in instance.dynamic_attributes.items():
-        #     for spawn_attr_key, spawn_attr_val in instance.set_spawner_attributes.item()
-        # :
-        #         if '{' + dyn_key + '}' in spawn_attr_val and \
-        #                 '{' + dyn_key + '}' in instance.set_spawner_attributes[dyn_key]:
-        #             instance.set_spawner_attributes[dyn_key].format(
-        #                 **{dyn_key: dyn_val}
-        #             )
 
-        #     if dyn_key in instance.object_attributes and \
-        #             '{' + dyn_key + '}' in instance.object_attributes[dyn_key]:
-        #         instance.object_attributes[dyn_key].format(
-        #             **{dyn_key: dyn_val}
-        #         )
-
-        # for attr_key, attr_val in instance.object_attributes.items():
-        #     for dyn_key, dyn_val in instance.dynamic_attributes.items():
-        #         if dyn_val in DYNAMIC_ATTRIBUTE_METHODS:
-        #             spawner.log.error("LDAP - dynamic attribute: {} was not replaced, "
-        #                               " is still: {}".format(dyn_key, dyn_val))
-        #             return False
-
-        #         if '{' + dyn_key + '}' in attr_val:
-        #             instance.object_attributes[attr_key] = attr_val.format(
-        #                 **{dyn_key: dyn_val})
         spawner.log.debug("LDAP - prepared spawner attributes {}".format(
             instance.set_spawner_attributes
         ))
@@ -541,6 +640,8 @@ def setup_ldap_user(spawner):
         spawner.log.info("LDAP - found {} in {}".format(conn_manager.get_response(),
                                                         instance.url))
 
+        # Pass prepared attributes to spawner attributes
+        update_spawner_attributes(spawner, instance.set_spawner_attributes)
         return True
     else:
         spawner.log.error("LDAP - Failed to connect to {}".format(instance.url))
