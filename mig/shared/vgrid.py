@@ -4,7 +4,7 @@
 # --- BEGIN_HEADER ---
 #
 # vgrid - helper functions related to VGrid actions
-# Copyright (C) 2003-2017  The MiG Project lead by Brian Vinter
+# Copyright (C) 2003-2019  The MiG Project lead by Brian Vinter
 #
 # This file is part of MiG.
 #
@@ -1610,6 +1610,16 @@ def vgrid_create_allowed(configuration, user_dict):
     return True
 
 
+def vgrid_manage_allowed(configuration, user_dict):
+    """Check if user with user_dict is allowed to manage vgrid_name based on
+    optional configuration limits.
+    """
+    for (key, val) in configuration.site_vgrid_managers:
+        if not re.match(val, user_dict.get(key, 'NO SUCH FIELD')):
+            return False
+    return True
+
+
 def __in_vgrid_special(configuration, path, vgrid_special_base, flat=False):
     """Helper function to detect subvgrid public/private web hosting dirs and
     vgrid shares.
@@ -1659,12 +1669,27 @@ def in_vgrid_readonly(configuration, path):
                               configuration.vgrid_files_readonly, flat=True)
 
 
-def in_vgrid_share(configuration, path):
-    """Checks if path is inside a vgrid share and returns the name of the
-    deepest such sub-vgrid it is inside if so.
+def in_vgrid_legacy_share(configuration, path):
+    """Checks if path is inside a vgrid legacy share and returns the name of
+    the deepest such sub-vgrid it is inside if so.
     """
     return __in_vgrid_special(configuration, path,
                               configuration.vgrid_files_home)
+
+
+def in_vgrid_share(configuration, path):
+    """Checks if path is inside a vgrid share on either current or legacy
+    format and returns the name of the deepest such sub-vgrid it is inside if
+    so. Please note that for modern vgrids the path may be either writable or
+    readonly, so both must be checked.
+    """
+    modern_writable = in_vgrid_writable(configuration, path)
+    if modern_writable:
+        return modern_writable
+    modern_readonly = in_vgrid_readonly(configuration, path)
+    if modern_readonly:
+        return modern_readonly
+    return in_vgrid_legacy_share(configuration, path)
 
 
 def in_vgrid_priv_web(configuration, path):

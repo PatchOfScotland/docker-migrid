@@ -27,16 +27,16 @@
 
 """GDP specific helper functions"""
 
+import base64
+import datetime
+import hashlib
 import os
 import time
-import base64
-import hashlib
 
 try:
     import pdfkit
 except:
     pdfkit = None
-from datetime import datetime
 try:
     from xvfbwrapper import Xvfb
 except:
@@ -44,7 +44,8 @@ except:
 
 from shared.base import client_id_dir, valid_dir_input
 from shared.defaults import default_vgrid, all_vgrids, any_vgrid, \
-    io_session_timeout, user_db_filename as mig_user_db_filename
+    io_session_timeout, user_db_filename as mig_user_db_filename, \
+    valid_gdp_auth_scripts as valid_auth_scripts
 from shared.fileio import touch, make_symlink, write_file, remove_rec, \
     acquire_file_lock, release_file_lock
 from shared.notification import send_email
@@ -72,27 +73,9 @@ skip_client_id_rewrite = [
     'viewvgrid.py',
 ]
 
-valid_scripts = [
-    'autocreate.py',
-    'autologout.py',
-    'cat.py',
-    'cp.py',
-    'fileman.py',
-    'gdpman.py',
-    'logout.py',
-    'ls.py',
-    'mkdir.py',
-    'mv.py',
-    'rm.py',
-    'settings.py',
-    'settingsaction.py',
-    'twofactor.py',
-    'uploadchunked.py',
-]
-
 valid_log_actions = [
     'accessed',
-    'accept_invite',
+    'accept_user',
     'auto_logged_out',
     'copied',
     'created',
@@ -168,7 +151,7 @@ def __client_id_from_project_client_id(configuration,
                 project_client_id.split(client_id_project_postfix)[0]
         else:
             _logger.warning(
-                "'%s' is _NOT_ a GDP project client id" % project_client_id)
+                "'%s' is NOT a GDP project client id" % project_client_id)
     except Exception, exc:
         _logger.error(
             "GDP:__client_id_from_project_client_id failed:"
@@ -192,7 +175,7 @@ def __project_name_from_project_client_id(configuration,
                 project_client_id.split(
                     client_id_project_postfix)[1].split('/')[0]
         else:
-            _logger.warning("'%s' is _NOT_ a GDP project client id"
+            _logger.warning("'%s' is NOT a GDP project client id"
                             % project_client_id)
     except Exception, exc:
         _logger.error("GDP:__project_name_from_project_client_id failed:"
@@ -326,7 +309,7 @@ def __create_gdp_user_db_entry(configuration):
     result = {
         'projects': {},
         'account': {
-            'state': valid_account_states[0]
+            'state': valid_account_states[0],
         }
     }
 
@@ -350,6 +333,21 @@ def __validate_user_db(configuration, client_id, user_db=None):
                 PROJECT_NAME: {
                     'state': str,
                     'client_id': str,
+                    'category_meta': {
+                        'category_id': str,
+                        'actions': [{
+                            'date: str,
+                            'user': str,
+                            'action': str,
+                            'references': [{
+                                'ref_id': str,
+                                'ref_help': str,
+                                'ref_name': str,
+                                'ref_pattern: str,
+                                'value': str,
+                            }, ...]
+                        }],
+                    }
                 }
             }
             'account': {
@@ -374,6 +372,7 @@ def __validate_user_db(configuration, client_id, user_db=None):
     projects = None
     account = None
     err_msg = "Database format error for user: '%s'" % client_id
+    warn_msg = "Database format warning for user: '%s'" % client_id
     log_err_msg = "GDP: " + err_msg
 
     if user_db is None:
@@ -389,7 +388,7 @@ def __validate_user_db(configuration, client_id, user_db=None):
         _logger.error(log_err_msg + template)
     elif not isinstance(user, dict):
         status = False
-        template = ": User entry is _NOT_ a dictionary instance"
+        template = ": User entry is NOT a dictionary instance"
         err_msg += template
         _logger.error(log_err_msg + template)
 
@@ -404,7 +403,7 @@ def __validate_user_db(configuration, client_id, user_db=None):
             _logger.error(log_err_msg + template)
         elif not isinstance(projects, dict):
             status = False
-            template = ": 'projects' entry is _NOT_ a dictionary instance"
+            template = ": 'projects' entry is NOT a dictionary instance"
             err_msg += template
             _logger.error(log_err_msg + template)
 
@@ -424,6 +423,14 @@ def __validate_user_db(configuration, client_id, user_db=None):
                 err_msg += template
                 _logger.error(log_err_msg + template)
                 break
+            # TODO: enable this is noisy log or just fix?
+            # NOTE: category and references were added later: some may lack it
+            # if not 'category_meta' in value.keys():
+            #    template = ": Missing 'category_meta' entry" + " for project: '%s'" \
+            #        % key
+            #    warn_msg += template
+            #    _logger.warning(warn_msg + template)
+            #    continue
 
     # Validate account
 
@@ -436,7 +443,7 @@ def __validate_user_db(configuration, client_id, user_db=None):
             _logger.error(log_err_msg + template)
         elif not isinstance(account, dict):
             status = False
-            template = ": 'account' is _NOT_ a dictionary instance"
+            template = ": 'account' is NOT a dictionary instance"
             err_msg += template
             _logger.error(log_err_msg + template)
 
@@ -462,7 +469,7 @@ def __validate_user_db(configuration, client_id, user_db=None):
                 _logger.error(log_err_msg + template)
             elif not isinstance(account_protocol, dict):
                 status = False
-                template = ": 'account -> %s' is _NOT_ a dictionary instance" \
+                template = ": 'account -> %s' is NOT a dictionary instance" \
                     % protocol
                 err_msg += template
                 _logger.error(log_err_msg + template)
@@ -491,7 +498,7 @@ def __validate_user_db(configuration, client_id, user_db=None):
                 elif not isinstance(protocol_last_login, dict):
                     status = False
                     template = ": 'account -> %s -> last_login'" % protocol \
-                        + " is _NOT_ a dictionary instance"
+                        + " is NOT a dictionary instance"
                     err_msg += template
                     _logger.error(log_err_msg + template)
 
@@ -564,29 +571,48 @@ def __save_user_db(configuration, user_db, locked=False):
         release_file_lock(flock)
 
 
-def __send_project_create_confirmation(configuration,
+def __send_project_action_confirmation(configuration,
+                                       action,
                                        login,
+                                       target,
                                        project_name,
-                                       workzone_id):
-    """Send project create confirmation to *login* and GDP admins"""
+                                       category_dict):
+    """Send project *action* confirmation possibly with target to *login* and
+    GDP admins.
+    """
 
     _logger = configuration.logger
     # _logger.debug("login: '%s', project_name: '%s'" % (login,
     #                                                    project_name))
     status = True
-    log_ok_msg = "GDP: Send project confirmation email" \
-        + " for registrant: '%s', project: '%s', workzone_id: '%s'" \
-        % (login, project_name, workzone_id)
-    log_err_msg = "GDP: Failed to send project confirmation email" \
-        + " for registrant: '%s', project: '%s', workzone_id: '%s'" \
-        % (login, project_name, workzone_id)
+    target_dict = {}
+    if action == "create":
+        target_dict['registrant'] = login
+    elif action == "invite_user":
+        target_dict['registrant'] = login
+        target_dict['target_user'] = target
+    elif action == "remove_user":
+        target_dict['registrant'] = login
+        target_dict['target_user'] = target
+    elif action == "accept_user":
+        target_dict['target_user'] = login
+    else:
+        _logger.error("unexpected action: %s" % action)
+        return False
+
+    log_ok_msg = "GDP: Send project %s confirmation email" % action
+    ref_pairs = [(i['ref_id'], i['value']) for i in
+                 category_dict.get('references', {}).get(action, [])]
+    log_ok_msg += " for targets: '%s', project: '%s', %s %s" % \
+                  (target_dict, project_name, target, ref_pairs)
+    log_err_msg = "GDP: Failed to send project %s confirmation email" % action
+    log_err_msg += " for targets: '%s', project: '%s', %s %s" % \
+                   (target_dict, project_name, target, ref_pairs)
     template = None
     notify = []
     notify_filename = 'notifyemails.txt'
-    if workzone_id:
-        template_filename = 'notifycreate_workzone.txt'
-    else:
-        template_filename = 'notifycreate_general.txt'
+    template_filename = category_dict.get(
+        '%s_notify_template' % action, 'notify-%s-general_data.txt' % action)
 
     # Check for PDF generation packages
 
@@ -598,10 +624,9 @@ def __send_project_create_confirmation(configuration,
         status = False
         _logger.error("%s: Missing python xvfbwrapper package" % log_err_msg)
 
-    # NON-registratant notifications
-    # are only sent for projects with a workzone_id
+    # NON-registrant notifications are only sent for projects with ref value(s)
 
-    if status and workzone_id:
+    if status and ref_pairs:
 
         # Load notification emails
 
@@ -609,13 +634,15 @@ def __send_project_create_confirmation(configuration,
                                        notify_filename)
         try:
             fh = open(notify_filepath)
-            notifyline = fh.readline()
-            while notifyline:
+            for line in fh:
+                # Ignore comments and empty lines
+                notifyline = line.split('#', 1)[0]
+                if not notifyline:
+                    continue
                 email_idx = notifyline.find('<')
                 entry = {'name': notifyline[:email_idx].strip(' \t\n\r'),
                          'email': notifyline[email_idx:].strip(' \t\n\r')}
                 notify.append(entry)
-                notifyline = fh.readline()
             fh.close()
             if not notify:
                 status = False
@@ -638,7 +665,7 @@ def __send_project_create_confirmation(configuration,
 
     if status:
 
-        # Check for project create template
+        # Check for project action template
 
         template_filepath = os.path.join(configuration.gdp_home,
                                          template_filename)
@@ -652,11 +679,12 @@ def __send_project_create_confirmation(configuration,
                 _logger.error("%s: Failed to open template file: %s"
                               % (log_err_msg, exc))
 
-    # Generate project create PDF
+    # Generate project action PDF
 
     if status:
         pdf_filename = '%s.pdf' % project_name
         pdf_filepath = os.path.join(project_home, pdf_filename)
+        # NOTE: quiet is needed to avoid stdout breaking cgi
         pdf_options = {
             'page-size': 'Letter',
             'margin-top': '0.75in',
@@ -664,18 +692,24 @@ def __send_project_create_confirmation(configuration,
             'margin-bottom': '0.75in',
             'margin-left': '0.75in',
             'encoding': 'UTF-8',
+            'quiet': '',
         }
-        if workzone_id:
-            workzone_desc = workzone_id
-        else:
-            workzone_desc = "General personalized data"
 
-        timestamp = datetime.fromtimestamp(time.time())
+        timestamp = datetime.datetime.fromtimestamp(time.time())
         date = timestamp.strftime('%d/%m/%Y %H:%M:%S')
-        fill_entries = {'date': date,
+        fill_entries = {'site_title': configuration.site_title,
+                        'short_title': configuration.short_title,
+                        'server_fqdn': configuration.server_fqdn,
+                        'date': date,
                         'project_name': project_name,
-                        'registrant': login,
-                        'workzone_id': workzone_desc}
+                        'category_title': category_dict['category_title'],
+                        }
+        fill_entries.update(target_dict)
+
+        for ref_entry in category_dict.get('references', {}).get(action, []):
+            ref_id = ref_entry['ref_id']
+            fill_entries[ref_id+'_name'] = ref_entry['ref_name']
+            fill_entries[ref_id+'_value'] = ref_entry['value']
         template = template % fill_entries
         template.encode('utf8')
 
@@ -709,14 +743,15 @@ def __send_project_create_confirmation(configuration,
                 _logger.error("%s: Failed to stop vdisplay: %s"
                               % (log_err_msg, exc))
 
-    # Send project create mail
+    # Send project action mail
 
     if status:
         recipients = login
         for admin in notify:
             recipients = '%s, %s %s' % (recipients, admin['name'],
                                         admin['email'])
-        subject = "SIF project create: '%s'" % project_name
+        subject = "%s project %s: '%s'" % (configuration.short_title, action,
+                                           project_name)
         message = ''
         status = send_email(
             recipients,
@@ -734,6 +769,47 @@ def __send_project_create_confirmation(configuration,
                      + ": Recipients: %s" % recipients)
 
     return status
+
+
+def __send_project_create_confirmation(configuration,
+                                       login,
+                                       project_name,
+                                       category_dict):
+    """Send project create confirmation to *login* and GDP admins"""
+    return __send_project_action_confirmation(configuration, "create", login,
+                                              '', project_name, category_dict)
+
+
+def __send_project_invite_user_confirmation(configuration,
+                                            login,
+                                            user,
+                                            project_name,
+                                            category_dict):
+    """Send project invite *user* confirmation to *login* and GDP admins"""
+    return __send_project_action_confirmation(configuration, "invite_user",
+                                              login, user, project_name,
+                                              category_dict)
+
+
+def __send_project_accept_user_confirmation(configuration,
+                                            login,
+                                            project_name,
+                                            category_dict):
+    """Send project invite accept confirmation to *login* and GDP admins"""
+    return __send_project_action_confirmation(configuration, "accept_user",
+                                              login, '', project_name,
+                                              category_dict)
+
+
+def __send_project_remove_user_confirmation(configuration,
+                                            login,
+                                            user,
+                                            project_name,
+                                            category_dict):
+    """Send project remove *user* confirmation to *login* and GDP admins"""
+    return __send_project_action_confirmation(configuration, "remove_user",
+                                              login, user, project_name,
+                                              category_dict)
 
 
 def __delete_mig_user(configuration, client_id, allow_missing=False):
@@ -850,7 +926,7 @@ def __update_user_log(configuration, client_id, locked=False):
         if not os.path.exists(log_filepath):
             touch(log_filepath, configuration)
         fh = open(log_filepath, 'ab')
-        timestamp = datetime.fromtimestamp(time.time())
+        timestamp = datetime.datetime.fromtimestamp(time.time())
         date = timestamp.strftime('%d-%m-%Y_%H-%M-%S')
         client_id_hash = __scamble_user_id(configuration, client_id)
         msg = "%s : %s : %s :\n" \
@@ -867,7 +943,7 @@ def __update_user_log(configuration, client_id, locked=False):
     return result
 
 
-def __active_project(configuration, user_id, protocol):
+def __active_project(configuration, user_id, protocol, locked=False):
     """Returns dictionary with active project info for
     *user_id* with *protocol*"""
 
@@ -881,7 +957,7 @@ def __active_project(configuration, user_id, protocol):
         client_id = __client_id_from_user_id(configuration, user_id)
 
         if client_id is not None:
-            user_db = __load_user_db(configuration)
+            user_db = __load_user_db(configuration, locked=locked)
             (status, _) = __validate_user_db(configuration, client_id,
                                              user_db)
             # Retrieve active project client id
@@ -935,7 +1011,7 @@ def get_project_from_short_id(configuration, project_short_id):
     except Exception:
         _logger.error(
             "GDP: get_project_from_short_id failed:"
-            + "'%s' is _NOT_ a project short id" % project_short_id)
+            + "'%s' is NOT a project short id" % project_short_id)
 
     return result
 
@@ -992,6 +1068,29 @@ def get_short_id_from_user_id(configuration, user_id):
     return result
 
 
+def update_category_meta(configuration, client_id, project, category_dict,
+                         action, target=None):
+    """Update *project* category meta dict with one or more category and
+    *action* references from *category_dict* on behalf of *client_id*.
+    """
+    # Lazy fill missing entries
+    meta = project['category_meta'] = project.get('category_meta', {})
+    meta['category_id'] = meta.get('category_id', '')
+    if not meta['category_id']:
+        meta['category_id'] = category_dict['category_id']
+    meta['actions'] = meta.get('actions', [])
+    save_entry = {'date': "%s" % datetime.datetime.now(), 'user': client_id,
+                  'action': action, 'references': []}
+    if target:
+        save_entry['target'] = target
+    action_refs = category_dict.get('references', []).get(action, [])
+    for ref_entry in action_refs:
+        if ref_entry and ref_entry.get('value', None):
+            save_entry['references'].append(ref_entry)
+    meta['actions'].append(save_entry)
+    return project
+
+
 def project_log(
         configuration,
         protocol,
@@ -1020,7 +1119,7 @@ def project_log(
     if action not in valid_log_actions:
         status = False
         _logger.error(log_err_msg
-                      + ": Action is _NOT_ in valid_log_actions %s"
+                      + ": Action is NOT in valid_log_actions %s"
                       % valid_log_actions)
 
     # Validate protocol
@@ -1028,7 +1127,7 @@ def project_log(
     if protocol not in valid_protocols:
         status = False
         _logger.error(log_err_msg
-                      + ": Protocol is _NOT_ in valid_protocols: %s"
+                      + ": Protocol is NOT in valid_protocols: %s"
                       % valid_protocols)
 
     # Get client_id and project_client_id from user_id
@@ -1170,7 +1269,7 @@ def project_log(
     return status
 
 
-def validate_user(configuration, user_id, user_addr, protocol):
+def validate_user(configuration, user_id, user_addr, protocol, locked=False):
     """Validate user:
     Log every validation
     Validate user database format
@@ -1198,7 +1297,7 @@ def validate_user(configuration, user_id, user_addr, protocol):
 
     # _logger.debug("client_id: '%s'" % client_id)
 
-    user_db = __load_user_db(configuration)
+    user_db = __load_user_db(configuration, locked=locked)
     (status, validate_msg) = __validate_user_db(configuration, client_id,
                                                 user_db)
     if not status:
@@ -1232,7 +1331,8 @@ def validate_user(configuration, user_id, user_addr, protocol):
         # Generate last login message
 
         if status and protocol_login_ip:
-            lastlogin = datetime.fromtimestamp(protocol_login_timestamp)
+            lastlogin = datetime.datetime.fromtimestamp(
+                protocol_login_timestamp)
             lastloginstr = lastlogin.strftime('%d/%m/%Y %H:%M:%S')
             ok_msg = "Last %s project login: %s from %s" \
                 % (protocol, lastloginstr, protocol_login_ip)
@@ -1262,7 +1362,7 @@ def get_users(configuration, locked=False):
 
 
 def get_projects(configuration, client_id, state, owner_only=False):
-    """Return list of GDP projects for user *client_id* with *state*"""
+    """Return dictionary of GDP projects for user *client_id* with *state*"""
 
     _logger = configuration.logger
     # _logger.debug("client_id: '%s', state: '%s'" % (client_id, state))
@@ -1277,7 +1377,7 @@ def get_projects(configuration, client_id, state, owner_only=False):
     if not state in valid_project_states:
         status = False
         _logger.error(log_err_msg
-                      + ": State _NOT_ in valid_states: %s"
+                      + ": State NOT in valid_states: %s"
                       % valid_project_states)
 
     # Retrieve user
@@ -1294,16 +1394,23 @@ def get_projects(configuration, client_id, state, owner_only=False):
 
     if status:
         user_projects = user_db.get(client_id, {}).get('projects', {})
-        result = []
+        result = {}
         for (key, value) in user_projects.iteritems():
-            project_state = value.get('state', '')
+            # Implicit fill once and for all for backwards compatibility
+            project_state = value['state'] = value.get('state', '')
+            project_category_meta = value['category_meta'] = \
+                value.get('category_meta', {})
+            project_category = project_category_meta['category_id'] = \
+                project_category_meta.get('category_id', '')
+            project_actions = project_category_meta['actions'] = \
+                project_category_meta.get('actions', [])
             if state == project_state:
                 if not owner_only or owner_only and \
                     vgrid_is_owner(key,
                                    client_id,
                                    configuration,
                                    recursive=False):
-                    result.append(key)
+                    result[key] = value
 
     return result
 
@@ -1334,13 +1441,14 @@ def get_project_user_dn(configuration, requested_script, client_id, protocol):
     # Check for valid GDP script
 
     valid = False
-    for script in valid_scripts:
+    for script in valid_auth_scripts:
         if requested_script.find(script) > -1:
             valid = True
             break
     if not valid:
         _logger.error(log_err_msg
-                      + ": _NOT_ in valid_scripts: %s" % valid_scripts)
+                      + ": NOT in valid_auth_scripts: %s" %
+                      valid_auth_scripts)
     else:
 
         # Check if requested_script operates with original client_id
@@ -1429,9 +1537,9 @@ def project_remove_user(
         owner_client_addr,
         owner_client_id,
         client_id,
-        project_name):
-    """User *owner_client_addr* removed user *client_id*
-    from *project_name"""
+        project_name,
+        category_dict):
+    """User *owner_client_id* removed user *client_id* from *project_name"""
 
     _logger = configuration.logger
     # _logger.debug(
@@ -1493,7 +1601,7 @@ def project_remove_user(
         project_state = project.get('state', '')
         if not project:
             status = False
-            template = ": Provided user is _NOT_ registered with the project"
+            template = ": Provided user is NOT registered with the project"
             err_msg += template
             _logger.error(log_err_msg + template)
         elif project_state == 'removed':
@@ -1543,8 +1651,28 @@ def project_remove_user(
                 _logger.error(log_err_msg
                               + ": Project log failed")
         if status:
+            # Always register remove with owner
+            owner_projects = user_db.get(owner_client_id, {}).get('projects',
+                                                                  {})
+            owner_project = owner_projects[project_name]
+            update_category_meta(configuration, owner_client_id, owner_project,
+                                 category_dict, 'remove_user', client_id)
+
             __save_user_db(configuration, user_db, locked=True)
         release_file_lock(flock)
+
+    if status:
+        _logger.info("handle remove notify")
+        owner_login = __short_id_from_client_id(configuration, owner_client_id)
+        status = __send_project_remove_user_confirmation(configuration,
+                                                         owner_login,
+                                                         login,
+                                                         project_name,
+                                                         category_dict)
+        if not status:
+            template = ": Failed to send project remove confirmation email"
+            err_msg += template
+            _logger.error(log_err_msg + template)
 
     ret_msg = err_msg
     if status:
@@ -1554,14 +1682,19 @@ def project_remove_user(
     return (status, ret_msg)
 
 
-def project_invite(
+def project_invite_user(
         configuration,
         owner_client_addr,
         owner_client_id,
         client_id,
-        project_name):
-    """User *owner_client_id* invites user *client_id*
-    to *project_name"""
+        project_name,
+        category_dict,
+        in_create=False):
+    """User *owner_client_id* invites user *client_id* to *project_name.
+    Register additional reference tracking with *category_dict*.
+    If in_create is set it means that the invite is a part of project_create so
+    that the notification and references handling should be fitted accordingly.
+    """
 
     _logger = configuration.logger
     # _logger.debug(
@@ -1572,6 +1705,12 @@ def project_invite(
 
     status = True
 
+    real_action = 'invite_user'
+    target = client_id
+    if in_create:
+        real_action = 'create'
+        target = None
+
     # Get login handle (email) from client_id
 
     login = __short_id_from_client_id(configuration,
@@ -1580,6 +1719,8 @@ def project_invite(
         client_id,
         project_name)
 
+    ref_pairs = [(i['ref_id'], i['value']) for i in
+                 category_dict.get('references', {}).get(real_action, [])]
     ok_msg = "Invited user: '%s' to project '%s'" % (login, project_name)
     err_msg = "Failed to invite user: '%s' to project: '%s'" % (
         login, project_name)
@@ -1613,6 +1754,9 @@ def project_invite(
             project_name,
             {'state': '',
              'client_id': project_client_id,
+             'category_meta': {
+                 'category_id': category_dict.get('category_id', ''),
+                 'actions': []},
              })
         project_state = project.get('state', '')
         if not project_state or project_state == 'removed':
@@ -1621,6 +1765,11 @@ def project_invite(
 
             log_msg = "User id: %s" \
                 % __scamble_user_id(configuration, client_id)
+            if ref_pairs:
+                log_parts = ["%s: '%s'" % pair for pair in ref_pairs]
+                log_msg += " with references: " + ', '.join(log_parts)
+            else:
+                log_msg += " without required references"
             status = project_log(
                 configuration,
                 'https',
@@ -1640,10 +1789,41 @@ def project_invite(
             _logger.error(log_err_msg + template)
 
         if status:
+            # Always register create and invite with owner
+            if in_create:
+                owner_project = project
+            else:
+                owner_projects = user_db.get(owner_client_id, {}).get(
+                    'projects', {})
+                owner_project = owner_projects[project_name]
+            update_category_meta(configuration, owner_client_id, owner_project,
+                                 category_dict, real_action, target)
+
             project['state'] = 'invited'
             user_projects[project_name] = project
             __save_user_db(configuration, user_db, locked=True)
         release_file_lock(flock)
+
+    if status:
+        owner_login = __short_id_from_client_id(configuration, owner_client_id)
+        if in_create:
+            _logger.info("handle implicit create notify inside invite")
+            status = __send_project_create_confirmation(configuration,
+                                                        owner_login,
+                                                        project_name,
+                                                        category_dict)
+        else:
+            _logger.info("handle proper invite notify")
+            status = __send_project_invite_user_confirmation(configuration,
+                                                             owner_login,
+                                                             login,
+                                                             project_name,
+                                                             category_dict)
+        if not status:
+            template = ": Failed to send project %s confirmation email" % \
+                       real_action
+            err_msg += template
+            _logger.error(log_err_msg + template)
 
     ret_msg = err_msg
     if status:
@@ -1755,12 +1935,17 @@ def create_project_user(
     return (status, ret_msg)
 
 
-def project_accept(
+def project_accept_user(
         configuration,
         client_addr,
         client_id,
-        project_name):
-    """Accept project invitation"""
+        project_name,
+        category_dict,
+        in_create=False):
+    """Accept project invitation.
+    If in_create is set it means that the accept is a part of project_create so
+    that the notification and references handling should be fitted accordingly.
+    """
 
     _logger = configuration.logger
     # _logger.debug("client_addr: '%s', client_id: '%s', project_name: '%s'"
@@ -1770,6 +1955,15 @@ def project_accept(
     project_client_id = None
     add_member_status = False
     add_user_status = False
+    real_action = 'accept_user'
+    if in_create:
+        real_action = 'create'
+
+    # Get login handle (email) from client_id
+
+    login = __short_id_from_client_id(configuration,
+                                      client_id)
+
     ok_msg = "Accepted invitation to project: '%s'" % project_name
     err_msg = "Failed to accept invitation for project: '%s'" \
         % project_name
@@ -1850,7 +2044,7 @@ def project_accept(
             'https',
             client_id,
             client_addr,
-            'accept_invite',
+            'accept_user',
             details=log_msg,
             project_name=project_name,
         )
@@ -1861,7 +2055,7 @@ def project_accept(
     # Roll back if something went wrong
 
     if not status:
-        template = "GDP: project_accept : roll back :"
+        template = "GDP: project_accept_user : roll back :"
         if add_member_status:
             _logger.info(template
                          + " Removing member: '%s' from vgrid: '%s'"
@@ -1882,9 +2076,23 @@ def project_accept(
                 _logger.error(template
                               + " Failed : %s" % (delete_msg))
     else:
+        if not in_create:
+            # Register accepted invitation for invited user
+            update_category_meta(configuration, client_id, project,
+                                 category_dict, 'accept_user')
         project['state'] = 'accepted'
         __save_user_db(configuration, user_db, locked=True)
     release_file_lock(flock)
+
+    if status and not in_create:
+        _logger.info("handle accept notify")
+        status = __send_project_accept_user_confirmation(configuration, login,
+                                                         project_name,
+                                                         category_dict)
+        if not status:
+            template = ": Failed to send project accept confirmation email"
+            err_msg += template
+            _logger.error(log_err_msg + template)
 
     ret_msg = err_msg
     if status:
@@ -1899,7 +2107,8 @@ def project_login(
         protocol,
         client_addr,
         user_id,
-        project_name=None):
+        project_name=None,
+        locked=False):
     """Log *client_id* into project_name"""
 
     _logger = configuration.logger
@@ -1932,8 +2141,9 @@ def project_login(
     # NOTE: This should be the case already if system is consistent
 
     if status:
-        (_, db_lock_filepath) = __user_db_filepath(configuration)
-        flock = acquire_file_lock(db_lock_filepath)
+        if not locked:
+            (_, db_lock_filepath) = __user_db_filepath(configuration)
+            flock = acquire_file_lock(db_lock_filepath)
 
         # Retrieve user and project info
 
@@ -1975,7 +2185,7 @@ def project_login(
         if protocol not in valid_protocols:
             status = False
             _logger.error(log_err_msg
-                          + ": Protocol is _NOT_ in valid_protocols: %s"
+                          + ": Protocol is NOT in valid_protocols: %s"
                           % valid_protocols)
 
         role = user_account.get(protocol,
@@ -2026,7 +2236,8 @@ def project_logout(
         protocol,
         client_addr,
         user_id,
-        autologout=False):
+        autologout=False,
+        locked=False):
     """Logout user *client_id* from active project
     If *client_id* is None then *project_client_id* must not be None
     Returns True if *client_id* got and active project and is logged out if it
@@ -2039,6 +2250,7 @@ def project_logout(
 
     status = True
     result = False
+    flock = None
     project_name = None
     role = None
     client_id = __client_id_from_user_id(configuration, user_id)
@@ -2057,8 +2269,9 @@ def project_logout(
         log_ok_msg += ", project: '%s'" % project_name
         log_err_msg += ", project: '%s'" % project_name
 
-    (_, db_lock_filepath) = __user_db_filepath(configuration)
-    flock = acquire_file_lock(db_lock_filepath)
+    if not locked:
+        (_, db_lock_filepath) = __user_db_filepath(configuration)
+        flock = acquire_file_lock(db_lock_filepath)
     user_db = __load_user_db(configuration, locked=True)
 
     # Retrieve user
@@ -2087,7 +2300,7 @@ def project_logout(
         if not role:
             status = False
             _logger.error(log_err_msg +
-                          ": User is _NOT_ logged in")
+                          ": User is NOT logged in")
         elif project_client_id and role != project_client_id:
             status = False
             _logger.error(log_err_msg +
@@ -2128,7 +2341,9 @@ def project_logout(
     if status:
         user_account[protocol]['role'] = ''
         __save_user_db(configuration, user_db, locked=True)
-    release_file_lock(flock)
+
+    if flock is not None:
+        release_file_lock(flock)
 
     if status:
         result = True
@@ -2152,6 +2367,7 @@ def project_open(
     #               % (protocol, client_addr, user_id))
 
     status = True
+    skiplogin = False
     active_short_id = ''
     project_short_id = __project_short_id_from_user_id(configuration, user_id)
     client_id = __client_id_from_user_id(configuration, user_id)
@@ -2168,12 +2384,16 @@ def project_open(
         + ", opened project: '%s'" % project_name
     log_err_msg = "GDP: User: '%s' from ip: %s, protocol: '%s'" \
         % (user_id, client_addr, protocol) \
-        + ", failed to opened project: '%s'" % project_name
+        + ", failed to open project: '%s'" % project_name
+
+    (_, db_lock_filepath) = __user_db_filepath(configuration)
+    flock = acquire_file_lock(db_lock_filepath)
 
     # NOTE: validate_user updates timestamp, extract active_project first
     active_project = __active_project(configuration,
                                       client_id,
-                                      protocol)
+                                      protocol,
+                                      locked=True)
     if active_project is None:
         status = False
         template = ": Failed to extract active project"
@@ -2182,7 +2402,7 @@ def project_open(
 
     if status:
         (status, validate_msg) = validate_user(
-            configuration, client_id, client_addr, protocol)
+            configuration, client_id, client_addr, protocol, locked=True)
         if not status:
             _logger.error(log_err_msg + ": %s" % validate_msg)
 
@@ -2191,9 +2411,7 @@ def project_open(
         template = ": Project close required for: '%s'" \
             % active_project.get('name', '')
         if active_short_id:
-            if protocol != 'davs':
-                status = False
-            else:
+            if protocol == 'davs':
                 cur_timestamp = time.time()
                 project_timestamp = active_project.get('last_timestamp', 0)
                 project_change_time = io_session_timeout.get(protocol, 0)
@@ -2207,7 +2425,7 @@ def project_open(
                         autologout = True
                     else:
                         status = False
-                        template += ": Wait %s seconds for autologout" \
+                        template += ": Wait %d seconds for autologout" \
                             % time_to_autologout
                 if autologout:
                     status = project_logout(
@@ -2215,20 +2433,27 @@ def project_open(
                         protocol,
                         client_addr,
                         active_short_id,
-                        autologout=True)
-                    if status:
-                        active_short_id = ''
+                        autologout=True,
+                        locked=True)
+            elif active_short_id == project_short_id:
+                skiplogin = True
+            else:
+                status = False
+
         if not status:
             err_msg += template
             _logger.error(log_err_msg + template)
 
-    if status:
+    if status and not skiplogin:
         status = project_login(
             configuration,
             protocol,
             client_addr,
             client_id,
-            project_name)
+            project_name,
+            locked=True)
+
+    release_file_lock(flock)
 
     ret_msg = err_msg
     if status:
@@ -2281,8 +2506,10 @@ def project_create(
         client_addr,
         client_id,
         project_name,
-        workzone_id):
-    """Create new project with *project_name* and owner *client_id*"""
+        category_dict):
+    """Create new project with *project_name* and owner *client_id*. Register
+    additional reference tracking with *category_dict*.
+    """
 
     _logger = configuration.logger
     # _logger.debug(
@@ -2294,6 +2521,8 @@ def project_create(
     rollback = {}
     rollback_dirs = {}
     vgrid_label = '%s' % configuration.site_vgrid_label
+    ref_pairs = [(i['ref_id'], i['value']) for i in
+                 category_dict.get('references', {}).get("create", [])]
     ok_msg = "Created project: '%s'" % project_name
     err_msg = "Failed to create project: '%s'" % project_name
     log_ok_msg = "GDP: User: '%s' from ip: %s, created project: '%s'" % (
@@ -2311,7 +2540,7 @@ def project_create(
 
     if project_name.find('/') != -1:
         status = False
-        template = ": '/' _NOT_ allowed in project name"
+        template = ": '/' NOT allowed in project name"
         err_msg += template
         _logger.error(log_err_msg + template)
 
@@ -2467,11 +2696,12 @@ This directory is used for hosting private files for the '%s' '%s'.
             _logger.error(log_err_msg + template
                           + ": '%s'" % project_home)
 
-    # 'Invite' and 'accept' to enable owner login
+    # Fake 'invite_user' and 'accept_user' to enable owner login
 
     if status:
-        (status, _) = project_invite(configuration, client_addr,
-                                     client_id, client_id, project_name)
+        (status, _) = project_invite_user(configuration, client_addr,
+                                          client_id, client_id, project_name,
+                                          category_dict, in_create=True)
         if status:
             rollback['project'] = True
         else:
@@ -2480,25 +2710,13 @@ This directory is used for hosting private files for the '%s' '%s'.
             _logger.error(log_err_msg + template)
 
     if status:
-        (status, _) = project_accept(configuration, client_addr,
-                                     client_id, project_name)
+        (status, _) = project_accept_user(configuration, client_addr,
+                                          client_id, project_name,
+                                          category_dict, in_create=True)
         if status:
             rollback['user'] = True
         else:
             template = ": Automatic accept failed"
-            err_msg += template
-            _logger.error(log_err_msg + template)
-
-    # Send create info to GDP admin
-
-    if status:
-        login = __short_id_from_client_id(configuration, client_id)
-        status = __send_project_create_confirmation(configuration,
-                                                    login,
-                                                    project_name,
-                                                    workzone_id)
-        if not status:
-            template = ": Failed to send project create confirmation email"
             err_msg += template
             _logger.error(log_err_msg + template)
 
@@ -2508,10 +2726,11 @@ This directory is used for hosting private files for the '%s' '%s'.
 
         log_msg = "Created project"
 
-        if workzone_id:
-            log_msg += " with workzone number: '%s'" % workzone_id
+        if ref_pairs:
+            log_parts = ["%s: '%s'" % pair for pair in ref_pairs]
+            log_msg += " with references: " + ', '.join(log_parts)
         else:
-            log_msg += " for general personalized data"
+            log_msg += " without required references"
 
         status = project_log(
             configuration,
@@ -2570,7 +2789,7 @@ This directory is used for hosting private files for the '%s' '%s'.
                     "GDP: project_create : roll back :"
                     + " GDP user: '%s', project: '%s'"
                     % (client_id, project_name)
-                    + " _NOT_ found in GDP database")
+                    + " NOT found in GDP database")
             __save_user_db(configuration, user_db, locked=True)
             release_file_lock(flock)
 

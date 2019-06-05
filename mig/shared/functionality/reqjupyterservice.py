@@ -51,7 +51,6 @@ import time
 import shutil
 import random
 import requests
-import json
 
 import shared.returnvalues as returnvalues
 from shared.base import client_id_dir, extract_field
@@ -402,9 +401,8 @@ def main(client_id, user_arguments_dict):
 
     url_base = '/' + service['service_name']
     url_home = url_base + '/home'
-    host_url_auth = host + url_base + '/hub/login'
-    host_url_data = host + url_base + '/hub/user-data'
-    # url_data = host + url_base + '/hub/data'
+    url_auth = host + url_base + '/hub/login'
+    url_data = host + url_base + '/hub/user-data'
 
     # Does the client home dir contain an active mount key
     # If so just keep on using it.
@@ -451,15 +449,15 @@ def main(client_id, user_arguments_dict):
 
         with requests.session() as session:
             # Authenticate and submit data
-            response = session.post(host_url_auth, headers=auth_header)
+            response = session.post(url_auth, headers=auth_header)
             if response.status_code == 200:
-                response = session.post(host_url_data, json=json_data)
+                response = session.post(url_data, json=json_data)
                 if response.status_code != 200:
                     logger.error("Jupyter: User %s failed to submit data %s to %s",
-                                 (client_id, json_data, host_url_data))
+                                 (client_id, json_data, url_data))
             else:
                 logger.error("Jupyter: User %s failed to authenticate against %s",
-                             (client_id, host_url_auth))
+                             (client_id, url_auth))
 
         # Redirect client to jupyterhub
         return jupyter_host(configuration, output_objects, remote_user, url_home)
@@ -524,15 +522,15 @@ def main(client_id, user_arguments_dict):
     # First login
     with requests.session() as session:
         # Authenticate
-        response = session.post(host_url_auth, headers=auth_header)
+        response = session.post(url_auth, headers=auth_header)
         if response.status_code == 200:
-            response = session.post(host_url_data, json=json_data)
+            response = session.post(url_data, json=json_data)
             if response.status_code != 200:
                 logger.error("Jupyter: User %s failed to submit data %s to %s",
-                             (client_id, json_data, host_url_data))
+                             (client_id, json_data, url_data))
         else:
             logger.error("Jupyter: User %s failed to authenticate against %s",
-                         (client_id, host_url_auth))
+                         (client_id, url_auth))
 
     # Update pickle with the new valid key
     jupyter_mount_state_path = os.path.join(mnt_path,

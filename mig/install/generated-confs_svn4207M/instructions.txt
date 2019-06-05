@@ -1,8 +1,8 @@
 Configurations for MiG and Apache were generated in
-generated-confs_svn4158M/ and symlinked to generated-confs .
+generated-confs_svn4207M/ and symlinked to generated-confs .
 For a default setup you will probably want to copy the MiG daemon conf to the
 server code directory:
-cp generated-confs_svn4158M/MiGserver.conf /home/mig/mig/server/
+cp generated-confs_svn4207M/MiGserver.conf /home/mig/mig/server/
 the static skin stylesheet to the styling directory:
 cp generated-confs/static-skin.css /home/mig/mig/images/
 and the default landing page to the user_home directory:
