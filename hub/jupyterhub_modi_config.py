@@ -1,8 +1,10 @@
 # Example config
 from jhubauthenticators import RegexUsernameParser, JSONParser
-from ldap_spawner_hooks import setup_ldap_user
-from ldap_spawner_hooks import LDAP, LDAP_SEARCH_ATTRIBUTE_QUERY, SPAWNER_SUBMIT_DATA, \
-    INCREMENT_ATTRIBUTE
+
+from ldap_hooks import setup_ldap_entry_hook
+from ldap_hooks import LDAP, LDAP_SEARCH_ATTRIBUTE_QUERY, \
+    SPAWNER_SUBMIT_DATA, INCREMENT_ATTRIBUTE, LDAP_FIRST_SEARCH_ATTRIBUTE_QUERY, \
+    SPAWNER_USER_ATTRIBUTE
 c = get_config()
 
 c.JupyterHub.ip = '0.0.0.0'
@@ -22,7 +24,7 @@ c.DockerSpawner.environment = {'JUPYTER_ENABLE_LAB': '1',
                                'CHOWN_HOME': 'yes',
                                'CHOWN_HOME_OPTS': '-R',
                                'GRANT_SUDO': 'no'}
-c.DockerSpawner.pre_spawn_hook = setup_ldap_user
+c.DockerSpawner.pre_spawn_hook = setup_ldap_entry_hook
 
 # Authenticator setup
 c.JupyterHub.authenticator_class = 'jhubauthenticators.HeaderAuthenticator'
@@ -49,28 +51,30 @@ LDAP.replace_object_with = {'/': '+'}
 
 # Dynamic attributes and where to find the value
 LDAP.dynamic_attributes = {
-    'emailAddress': SPAWNER_SUBMIT_DATA,
-    'uidNumber': LDAP_SEARCH_ATTRIBUTE_QUERY
+    'name': SPAWNER_USER_ATTRIBUTE,
+    'uidNumber': LDAP_SEARCH_ATTRIBUTE_QUERY,
+    'uid': LDAP_FIRST_SEARCH_ATTRIBUTE_QUERY
 }
 
 LDAP.set_spawner_attributes = {
-    'environment': {'NB_USER': '{emailAddress}',
+    'environment': {'NB_USER': '{uid}',
                     'NB_UID': '{uidNumber}'},
 }
 
 # Attributes used to check whether the ldap data of type object_classes already exists
 # LDAP.unique_object_attributes = ['emailAddress']
 LDAP.search_attribute_queries = [{'search_base': LDAP.base_dn,
-                                  'search_filter': '(objectclass=X-nextUserIdentifier)',
+                                  'search_filter': '(objectclass=x-nextUserIdentifier)',
                                   'attributes': ['uidNumber']}]
 
+modify_dn = 'cn=uidNext' + ',' + LDAP.base_dn
 LDAP.search_result_operation = {'uidNumber': {'action': INCREMENT_ATTRIBUTE,
-                                              'modify_dn': 'cn=uidNext'
-                                              + ',' + LDAP.base_dn}}
+                                              'modify_dn': modify_dn}}
 
 # Submit object settings
 LDAP.object_classes = ['X-certsDistinguishedName', 'PosixAccount']
-LDAP.object_attributes = {'uid': '{emailAddress}',
+LDAP.object_attributes = {'uid': '{name}',
                           'uidNumber': '{uidNumber}',
                           'gidNumber': '100',
-                          'homeDirectory': '/home/{emailAddress}'}
+                          'homeDirectory': '/home/{name}',
+                          'loginShell': '/bin/bash'}

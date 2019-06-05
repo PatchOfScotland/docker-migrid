@@ -49,31 +49,18 @@ services:
     container_name: nginx-proxy
     depends_on:
       - migrid
-      - dag
+      - modi
     ports:
     - "80:80"
     - "443:443"
     volumes:
     - /var/run/docker.sock:/tmp/docker.sock:ro
     - ./nginx-proxy/migrid.conf:/etc/nginx/conf.d/migrid.conf:ro
-    - ./nginx-proxy/dag.conf:/etc/nginx/conf.d/dag.conf:ro
     - ./nginx-proxy/modi.conf:/etc/nginx/conf.d/modi.conf:ro
     - ./certs/MiG/*.migrid.test/server.crt:/etc/nginx/certs/oid.migrid.test.crt:ro
     - ./certs/MiG/*.migrid.test/server.crt:/etc/nginx/certs/sid.migrid.test.crt:ro
     - ./certs/MiG/*.migrid.test/server.key:/etc/nginx/certs/oid.migrid.test.key:ro
     - ./certs/MiG/*.migrid.test/server.key:/etc/nginx/certs/sid.migrid.test.key:ro
-
-  dag:
-    image: nielsbohr/jupyterhub:latest
-    container_name: dag
-    depends_on:
-      - devdns
-    environment:
-      - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
-    volumes:
-      - ./hub/jupyterhub_dag_config.py:/srv/jupyterhub/jupyter_config.py:ro
-      - /var/run/docker.sock:/var/run/docker.sock:rw
-    command: jupyterhub -f /srv/jupyterhub/jupyter_config.py
 
   modi:
     image: nielsbohr/jupyterhub:latest
@@ -84,11 +71,8 @@ services:
       - JUPYTERHUB_CRYPT_KEY=${JUPYTERHUB_CRYPT_KEY}
     volumes:
       - ./hub/jupyterhub_modi_config.py:/srv/jupyterhub/jupyter_config.py:ro
-      - ./hub/modi_logo.png:/srv/jupyterhub/modi_logo.png:ro
-      - ./ldap_spawner_hooks:/srv/jupyterhub/ldap:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
-    command: /bin/bash -c "mkdir -p /app && cp -r /srv/jupyterhub/ldap /app/ldap && cd /app/ldap &&
-     python setup.py install && jupyterhub --debug -f /srv/jupyterhub/jupyter_config.py"
+    command: jupyterhub --debug -f /srv/jupyterhub/jupyter_config.py
 
   openldap:
     image: osixia/openldap:1.2.3
