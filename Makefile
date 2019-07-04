@@ -1,13 +1,16 @@
 OWNER=nielsbohr
 IMAGE=migrid
-TAG=edge
+TAG=dag
+NAME=migrid-service
 CHECKOUT=4207
 
+all:
+	init build
+
+init:
+	mkdir -p ./{certs,httpd,mig,state}
+
 build:
-	mkdir -p ./certs
-	mkdir -p ./httpd
-	mkdir -p ./mig
-	mkdir -p ./state
 	docker build -t ${OWNER}/${IMAGE}:${TAG} --build-arg MIG_CHECKOUT=${CHECKOUT} .
 
 clean:
@@ -15,19 +18,17 @@ clean:
 	rm -rf ./httpd
 	rm -rf ./mig
 	rm -rf ./state
-	if [ "$$(docker volume ls -q -f 'name=docker-migrid*')" != "" ]; then\
-		docker volume rm -f $$(docker volume ls -q -f 'name=docker-migrid*');\
+	if [ "$$(docker volume ls -q -f 'name=${NAME}*')" != "" ]; then\
+		docker volume rm -f $$(docker volume ls -q -f 'name=${NAME}*');\
 	fi
 
 reset:
 	rm -rf ./certs
 	rm -rf ./httpd
 	rm -rf ./state
-	if [ "$$(docker volume ls -q -f 'name=docker-migrid*')" != "" ]; then\
-		docker volume rm -f $$(docker volume ls -q -f 'name=docker-migrid*');\
+	if [ "$$(docker volume ls -q -f 'name=${NAME}*')" != "" ]; then\
+		docker volume rm -f $$(docker volume ls -q -f 'name=${NAME}*');\
 	fi
 
 push:
 	docker push ${OWNER}/${IMAGE}:${TAG}
-
-all: clean build

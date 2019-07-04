@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   migrid:
-    image: nielsbohr/migrid:edge
+    image: nielsbohr/migrid:dag
     hostname: migrid
     environment:
       TZ: Europe/Copenhagen
