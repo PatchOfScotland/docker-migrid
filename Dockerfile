@@ -1,4 +1,4 @@
-FROM centos:latest
+FROM centos:7
 
 # Centos image default yum configs prevent docs installation
 # https://superuser.com/questions/784451/centos-on-docker-how-to-install-doc-files
