@@ -1,4 +1,4 @@
-FROM centos:latest
+FROM centos:7
 
 # Centos image default yum configs prevent docs installation
 # https://superuser.com/questions/784451/centos-on-docker-how-to-install-doc-files
@@ -21,15 +21,15 @@ RUN yum update -y \
     tzdata \
     initscripts \
     svn \
-    vimdiff \
+    vim \
     net-tools \
     telnet \
     ca-certificates \
-    openssh-server \
     mercurial \
-    python-dev \
+    openssh-server \
     rsyslog \
-    openssh-clients
+    openssh-clients \
+    lsof
 
 # Apache OpenID (provided by epel)
 RUN yum install -y mod_auth_openid
@@ -144,24 +144,19 @@ RUN pip install --user \
 RUN pip install --user \
     requests
 
+# Module required to run pytests
+# 4.6 is the latest with python2 support
+RUN pip2 install --user \
+    pytest
+
 # Install and configure MiG
-ARG MIG_CHECKOUT=4448
-RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
+ARG CHECKOUT=4448
+RUN svn checkout -r $CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
 
 ADD mig $MIG_ROOT/mig
 
 USER root
 RUN chown -R $USER:$USER $MIG_ROOT/mig
-
-# Compile and install nss_switch and pam_mig
-RUN cd $MIG_ROOT/mig/pam-mig \
-    && make \
-    && chmod 755 libpam_mig.so \
-    && cp $MIG_ROOT/mig/pam-mig/libpam_mig.so /lib64/security/pam_mig.so \
-    && cd $MIG_ROOT/mig/libnss-mig \
-    && make \
-    && chmod 755 $MIG_ROOT/mig/libnss-mig/libnss_mig.so.2 \
-    && cp $MIG_ROOT/mig/libnss-mig/libnss_mig.so.2 /lib64/libnss_mig.so.2
 
 USER $USER
 
@@ -183,21 +178,18 @@ RUN ./generateconfs.py \
     --enable_imnotify=True \
     --enable_hsts=True \
     --enable_jupyter=True \
-    --enable_sftp=True \
-    --enable_sftp_subsys=False \
     --jupyter_services="dag.http://dag" \
     --jupyter_services_desc="{'dag': 'Hello from dag'}" \
+    --enable_sftp=False \
+    --enable_sftp_subsys=True \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
     --mig_cert_fqdn= \
-    --mig_cert_port= \
     --ext_cert_fqdn= \
-    --ext_cert_port= \
     --mig_oid_fqdn=oid.$DOMAIN \
     --mig_oid_port=443 \
     --ext_oid_fqdn= \
-    --ext_oid_port= \
     --sid_fqdn=sid.$DOMAIN \
     --sid_port=444 \
     --io_fqdn=io.$DOMAIN \
@@ -254,13 +246,6 @@ RUN cp generated-confs/MiG.conf $WEB_DIR/conf.d/ \
 RUN cp generated-confs/apache2.conf $WEB_DIR/ \
     && cp generated-confs/ports.conf $WEB_DIR/ \
     && cp generated-confs/envvars $WEB_DIR/
-
-# Jupyter apache confs
-RUN mkdir -p $WEB_DIR/conf.extras.d \
-    && cp generated-confs/MiG-jupyter-def.conf $WEB_DIR/conf.extras.d \
-    && cp generated-confs/MiG-jupyter-openid.conf $WEB_DIR/conf.extras.d \
-    && cp generated-confs/MiG-jupyter-proxy.conf $WEB_DIR/conf.extras.d/ \
-    && cp generated-confs/MiG-jupyter-rewrite.conf $WEB_DIR/conf.extras.d/
 
 # Disable certificate check for OID
 RUN sed -i '/\/server.ca.pem/ a SSLProxyCheckPeerName off' $WEB_DIR/conf.d/MiG.conf \
