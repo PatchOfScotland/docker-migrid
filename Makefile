@@ -2,7 +2,7 @@ OWNER=nielsbohr
 IMAGE=migrid
 TAG=dag
 NAME=migrid-service
-CHECKOUT=4207
+CHECKOUT=4448
 
 all:
 	init build

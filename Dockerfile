@@ -145,7 +145,7 @@ RUN pip install --user \
     requests
 
 # Install and configure MiG
-ARG MIG_CHECKOUT=4199
+ARG MIG_CHECKOUT=4448
 RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
 
 ADD mig $MIG_ROOT/mig
