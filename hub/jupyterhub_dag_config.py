@@ -82,6 +82,14 @@ configs = [{'config_name': 'migrid-service_extensions_config',
             'gid': user_gid,
             'mode': 0o555}]
 
+append_to_notebook_configs = [{
+    'config_name': 'migrid-service_append_to_notebook_config',
+    'filename': os.path.join(before_notebook_path,
+                             'append_to_notebook_config.py'),
+    'uid': user_uid,
+    'gid': user_gid,
+    'mode': 0o555}]
+
 c.SwarmSpawner.configs = configs
 
 mounts = [SSHFSMounter({
@@ -112,7 +120,10 @@ c.SwarmSpawner.dockerimages = [
     {'image': 'nielsbohr/r-notebook:edge',
      'name': 'R Notebook'},
     {'image': 'nielsbohr/tensorflow-notebook:latest',
-     'name': 'Tensorflow Notebook'}
+     'name': 'Tensorflow Notebook'},
+    {'image': 'nielsbohr/hpc-notebook:edge',
+     'name': 'HPC Notebook',
+     'configs': append_to_notebook_configs}
 ]
 
 # Authenticator setup

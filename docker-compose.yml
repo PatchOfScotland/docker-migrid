@@ -1,6 +1,8 @@
 version: '3.7'
 
 configs:
+  append_to_notebook_config:
+    file: ./hub/before-notebook.d/append_to_notebook_config.py
   create_ipython_start_configs:
     file: ./hub/before-notebook.d/create_ipython_profile_start.py
   create_r_libs_path_config:
