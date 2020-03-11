@@ -1,5 +1,23 @@
 version: '3.7'
 
+configs:
+  create_ipython_start_configs:
+    file: ./hub/before-notebook.d/create_ipython_profile_start.py
+  create_r_libs_path_config:
+    file: ./hub/before-notebook.d/create_r_libs_path.py
+  set_jupyter_kernels_config:
+    file: ./hub/before-notebook.d/set_jupyter_kernels.py
+  set_python_pip_aliases_config:
+    file: ./hub/before-notebook.d/set_python_pip_aliases.py
+  extensions_config:
+    file: ./hub/extensions/page_config.json
+  update_path_env_config:
+    file: ./hub/jupyter_startup_files/update_path_env.py
+  r_environ_config:
+    file: ./hub/R/etc/Renviron
+  r_server_config:
+    file: ./hub/R/conf/rserver.conf
+
 services:
   migrid:
     image: nielsbohr/migrid:dag
