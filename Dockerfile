@@ -21,15 +21,15 @@ RUN yum update -y \
     tzdata \
     initscripts \
     svn \
-    vimdiff \
+    vim \
     net-tools \
     telnet \
     ca-certificates \
-    openssh-server \
     mercurial \
-    python-dev \
+    openssh-server \
     rsyslog \
-    openssh-clients
+    openssh-clients \
+    lsof
 
 # Apache OpenID (provided by epel)
 RUN yum install -y mod_auth_openid
@@ -144,9 +144,14 @@ RUN pip install --user \
 RUN pip install --user \
     requests
 
+# Module required to run pytests
+# 4.6 is the latest with python2 support
+RUN pip2 install --user \
+    pytest
+
 # Install and configure MiG
-ARG MIG_CHECKOUT=4448
-RUN svn checkout -r $MIG_CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
+ARG CHECKOUT=4634
+RUN svn checkout -r $CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
 
 ADD mig $MIG_ROOT/mig
 
@@ -182,22 +187,17 @@ RUN ./generateconfs.py \
     --enable_crontab=True \
     --enable_imnotify=True \
     --enable_hsts=True \
-    --enable_jupyter=True \
-    --enable_sftp=True \
-    --enable_sftp_subsys=False \
-    --jupyter_services="dag.http://dag" \
-    --jupyter_services_desc="{'dag': 'Hello from dag'}" \
+    --enable_jupyter=False \
+    --enable_sftp=False \
+    --enable_sftp_subsys=True \
     --base_fqdn=$DOMAIN \
     --public_fqdn=www.$DOMAIN \
     --public_port=80 \
     --mig_cert_fqdn= \
-    --mig_cert_port= \
     --ext_cert_fqdn= \
-    --ext_cert_port= \
     --mig_oid_fqdn=oid.$DOMAIN \
     --mig_oid_port=443 \
     --ext_oid_fqdn= \
-    --ext_oid_port= \
     --sid_fqdn=sid.$DOMAIN \
     --sid_port=444 \
     --io_fqdn=io.$DOMAIN \
