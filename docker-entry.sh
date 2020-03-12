@@ -45,8 +45,8 @@ if [ $OPENID_STATUS -ne 0 ]; then
     exit $OPENID_STATUS
 fi
 
-/etc/init.d/migrid start sftp
-ps aux | grep grid_sftp.py | grep -v -q grep
+service migrid startdaemon sftpsubsys
+ps aux | grep sftp | grep -v -q grep
 SFTP_STATUS=$?
 if [ $SFTP_STATUS -ne 0 ]; then
     echo "Failed to start sshd: $SFTP_STATUS"
@@ -68,7 +68,7 @@ while sleep 60; do
         exit $OPENID_STATUS
     fi
 
-    ps aux | grep grid_sftp.py | grep -v -q grep
+    ps aux | grep sftp | grep -v -q grep
     SFTP_STATUS=$?
     if [ $SFTP_STATUS -ne 0 ]; then
         echo "sshd service failed."
