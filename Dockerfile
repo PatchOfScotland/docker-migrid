@@ -247,6 +247,13 @@ RUN cp generated-confs/apache2.conf $WEB_DIR/ \
     && cp generated-confs/ports.conf $WEB_DIR/ \
     && cp generated-confs/envvars $WEB_DIR/
 
+# Jupyter apache confs
+RUN mkdir -p $WEB_DIR/conf.extras.d \
+    && cp generated-confs/MiG-jupyter-def.conf $WEB_DIR/conf.extras.d \
+    && cp generated-confs/MiG-jupyter-openid.conf $WEB_DIR/conf.extras.d \
+    && cp generated-confs/MiG-jupyter-proxy.conf $WEB_DIR/conf.extras.d/ \
+    && cp generated-confs/MiG-jupyter-rewrite.conf $WEB_DIR/conf.extras.d/
+
 # Disable certificate check for OID
 RUN sed -i '/\/server.ca.pem/ a SSLProxyCheckPeerName off' $WEB_DIR/conf.d/MiG.conf \
     && sed -i '/SSLProxyCheckPeerName off/ a SSLProxyCheckPeerCN off' \
