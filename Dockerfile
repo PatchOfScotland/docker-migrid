@@ -6,6 +6,12 @@ RUN sed -i '/nodocs/d' /etc/yum.conf
 
 RUN yum update -y \
     && yum install -y \
+    epel-release \
+    && yum clean all \
+    && rm -fr /var/cache/yum
+
+RUN yum update -y \
+    && yum install -y \
     gcc \
     pam-devel \
     httpd \
@@ -29,7 +35,10 @@ RUN yum update -y \
     openssh-server \
     rsyslog \
     openssh-clients \
-    lsof
+    lsof \
+    python-pip \
+    && yum clean all \
+    && rm -fr /var/cache/yum
 
 # Apache OpenID (provided by epel)
 RUN yum install -y mod_auth_openid
@@ -116,11 +125,11 @@ RUN mkdir -p MiG-certificates \
     && ln -s $CERT_DIR/dhparams.pem dhparams.pem
 
 # Prepare OpenID
-RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
-    && python get-pip.py --user
+RUN pip install --user lxml
 
 ENV PATH=$PATH:/home/$USER/.local/bin
-RUN pip install --user https://github.com/openid/python-openid/archive/master.zip
+RUN pip install --user python-openid2
+# RUN pip install --user https://github.com/openid/python-openid/archive/master.zip
 
 # Modules required by grid_events.py
 RUN pip install --user \
@@ -150,7 +159,7 @@ RUN pip2 install --user \
     pytest
 
 # Install and configure MiG
-ARG CHECKOUT=4634
+ARG CHECKOUT=5205
 RUN svn checkout -r $CHECKOUT https://svn.code.sf.net/p/migrid/code/trunk .
 
 ADD mig $MIG_ROOT/mig

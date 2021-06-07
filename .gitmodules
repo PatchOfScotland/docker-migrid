@@ -1,0 +1,3 @@
+[submodule "jupyter_service_dag"]
+	path = jupyter_service_dag
+	url = git@github.com:ucphhpc/jupyter_service_dag.git

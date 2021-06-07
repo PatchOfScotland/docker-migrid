@@ -1,6 +1,8 @@
 version: '3.7'
 
 configs:
+  cull_idle_config:
+    file: ./hub/cull_idle_servers.py
   append_to_notebook_config:
     file: ./hub/before-notebook.d/append_to_notebook_config.py
   create_ipython_start_configs:
@@ -69,7 +71,7 @@ services:
     command: /app/docker-entry.sh -u dev@dev.dk -p Passw0rd123
 
   dag:
-    image: nielsbohr/jupyterhub:latest
+    image: nielsbohr/jupyterhub:edge
     hostname: dag
     depends_on:
       - migrid
@@ -81,7 +83,7 @@ services:
           - dag
           - dag.test
     volumes:
-      - ./hub/jupyterhub_dag_config.py:/srv/jupyterhub/jupyter_config.py:ro
+      - ./jupyter_service_dag/hub/jupyterhub_config.py:/srv/jupyterhub/jupyter_config.py:ro
       - /var/run/docker.sock:/var/run/docker.sock:rw
     command: jupyterhub --debug -f /srv/jupyterhub/jupyter_config.py
 
