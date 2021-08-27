@@ -5,11 +5,14 @@ services:
     image: ruudud/devdns
     container_name: devdns
     ports:
-        - "127.0.0.1:53:53/udp"
+        - "172.24.16.97:53:53/udp"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       TZ: ${TZ}
+    networks:
+      - default
+      - jupyter_service_default
 
   # The migrid core services including httpd and tightly integrated services
   # like job handling (grid script, monitor, sshmux, imnoty and vmproxy)
@@ -46,6 +49,13 @@ services:
       - devdns
     networks:
       default:
+        aliases:
+          - www.migrid.test
+          - cert.migrid.test
+          - ext.migrid.test
+          - oid.migrid.test
+          - sid.migrid.test
+      jupyter_service_default:
         aliases:
           - www.migrid.test
           - cert.migrid.test
@@ -116,6 +126,13 @@ services:
           - webdavs.migrid.test
           - ftps.migrid.test
           - sftp.migrid.test
+      jupyter_service_default:
+        aliases:
+          - www.migrid.test
+          - cert.migrid.test
+          - ext.migrid.test
+          - oid.migrid.test
+          - sid.migrid.test
     volumes:
       - type: volume
         source: httpd
@@ -408,3 +425,9 @@ volumes:
         type: none
         device: $PWD/state
         o: bind
+
+
+networks:
+  default:
+  jupyter_service_default:
+    external: true

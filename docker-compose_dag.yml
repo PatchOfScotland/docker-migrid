@@ -47,3 +47,9 @@ services:
 
 volumes:
   jhubstate:
+
+networks:
+  default:
+    external: true
+    attachable: true
+    name: jupyter_service_default
