@@ -128,11 +128,10 @@ services:
           - sftp.migrid.test
       jupyter_service_default:
         aliases:
-          - www.migrid.test
-          - cert.migrid.test
-          - ext.migrid.test
-          - oid.migrid.test
-          - sid.migrid.test
+          - openid.migrid.test
+          - webdavs.migrid.test
+          - ftps.migrid.test
+          - sftp.migrid.test
     volumes:
       - type: volume
         source: httpd
