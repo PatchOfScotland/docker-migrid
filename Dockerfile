@@ -106,7 +106,8 @@ RUN yum update -y \
     pysendfile \
     PyYAML \
     pyOpenSSL \
-    cracklib-python \
+    # NOTE: generally install cracklib from pip as yum only has py2 version
+    #cracklib-python \
     cracklib-devel \
     lftp \
     rsync \
@@ -120,6 +121,7 @@ RUN if [ "${WITH_PY3}" = "yes" ]; then \
       && yum install -y \
       python3-pip \
       python3-devel \
+      python3-mod_wsgi \
       #python3-paramiko \
       python36-paramiko \
       #python3-enchant \
@@ -132,7 +134,7 @@ RUN if [ "${WITH_PY3}" = "yes" ]; then \
       #python3-cffi \
       python36-cffi \
       python36-pyOpenSSL \
-      python36-pyYAML; \
+      python36-PyYAML; \
     else \
       echo "no py3 deps"; \
     fi;
@@ -246,12 +248,12 @@ ARG DOMAIN
 ARG ENABLE_DEFAULT_PY
 ARG WITH_PY3
 
-# Prepare OpenID
+# Prepare OpenID (python-openid for py2 and python-openid2 for py3)
 ENV PATH=$PATH:/home/$USER/.local/bin
 RUN pip install --user python-openid
 RUN if [ "$WITH_PY3" = "yes" ]; then \
       echo "install py3 openid" \
-      pip3 install --user python-openid; \
+      pip3 install --user python-openid2; \
     fi;
 
 # Modules required by grid_events.py
@@ -280,6 +282,18 @@ RUN if [ "$WITH_PY3" = "yes" ]; then \
       pip3 install --user \
       pyftpdlib; \
     fi;
+
+# Modules required by grid_X IO daemons (not availalble in yum for py 3)
+RUN pip install --user \
+    cracklib
+RUN if [ "$WITH_PY3" = "yes" ]; then \
+      pip3 install --user \
+      cracklib; \
+    fi;
+
+# Modules required by jupyter
+#RUN pip install --user \
+#    requests
 
 # Module required to run pytests
 # 4.6 is the latest with python2 support
