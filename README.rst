@@ -15,3 +15,18 @@ Documentation/Getting Started
 
 To get started with `docker-migrid`, the general documentation and introduction can be found by pressing the |docsbadge| badge.
 This includes a general description for how one should get started with MiGrid and its various services, and how you can deploy it on a system.
+
+etc/resolv.conf
+    nameserver 127.0.0.1
+docker-compose up -d
+docker exec -it migrid bash
+/usr/sbin/sshd
+su mig, ssh 127.0.0.1
+https://ext.migrid.test
+add workgroup
+add resource, update proxy
+NOTEBOOK_PARAMETERIZER="$HOME/.local/bin/notebook_parameterizer"
+PAPERMILL="$HOME/.local/bin/papermill"
+SSHFS_MOUNT="/usr/bin/sshfs"
+SSHFS_UMOUNT="/bin/fusermount -uz"
+python setupmeowdefs setup

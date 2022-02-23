@@ -113,7 +113,8 @@ RUN yum update -y \
     rsync \
     fail2ban \
     ipset \
-    wget
+    wget \
+    sshfs
 
 RUN if [ "${WITH_PY3}" = "yes" ]; then \
       echo "install py3 deps" \
@@ -301,8 +302,17 @@ RUN if [ "$WITH_PY3" = "yes" ]; then \
     fi;
 
 # Modules required by jupyter
-#RUN pip install --user \
-#    requests
+RUN pip install --user \
+    requests
+
+# Modules required by workflows
+RUN pip install --user \
+    nbformat \
+    nbconvert \
+    papermill
+RUN pip3 install --user \
+    notebook-parameterizer \
+    ipykernel
 
 # Module required to run pytests
 # 4.6 is the latest with python2 support
@@ -351,10 +361,10 @@ RUN if [ "$WITH_GIT" = "yes" ]; then \
         rsync -a migrid.git/ ./ && \
         rm -rf migrid.git/ ; \
     else \
-      svn checkout -r ${MIG_SVN_REV} ${MIG_SVN_REPO} . ; \
+      svn checkout -r $MIG_SVN_REV $MIG_SVN_REPO . ; \
     fi;
 
-ADD --chown=$USER:$USER mig $MIG_ROOT/
+ADD --chown=mig:mig mig $MIG_ROOT/
 
 FROM download_mig as install_mig
 ARG DOMAIN
@@ -421,7 +431,7 @@ RUN ./generateconfs.py --source=. \
     --enable_freeze=False --enable_imnotify=False \
     --enable_twofactor=True --enable_cracklib=True \
     --enable_notify=True --enable_preview=False \
-    --enable_workflows=False --enable_hsts=True \
+    --enable_workflows=True --enable_hsts=True \
     --enable_vhost_certs=True --enable_verify_certs=True \
     --enable_jupyter=True \
     --jupyter_services=${JUPYTER_SERVICES} \
@@ -554,7 +564,57 @@ ADD migrid-httpd.env /app/migrid-httpd.env
 RUN chown $USER:$USER /app/docker-entry.sh \
     && chmod +x /app/docker-entry.sh
 
+#USER root
+#RUN test -f /etc/ssh/ssh_host_ecdsa_key || /usr/bin/ssh-keygen -q -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key -C '' -N ''
+#RUN test -f /etc/ssh/ssh_host_rsa_key || /usr/bin/ssh-keygen -q -t rsa -f /etc/ssh/ssh_host_rsa_key -C '' -N ''
+#RUN test -f /etc/ssh/ssh_host_ed25519_key || /usr/bin/ssh-keygen -q -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -C '' -N ''
+#USER mig
+#RUN test -f ~/.ssh/id_rsa || /usr/bin/ssh-keygen -t rsa -f ~/.ssh/id_rsa -N ''
+#RUN test -f ~/.ssh/authorized_keys || /usr/bin/cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
+
+# set user mig
+# mkdir home/mig/.ssh
+# set 700 permissions on ssh dir
+# cd home/mig/.ssh
+# ssh-keygen -t rsa -f migrid -N ''
+
 USER root
+RUN cd \
+    && ssh-keygen -t rsa -b 4096 -f '/root/.ssh/id_rsa' -P '' \
+    && cp .ssh/id_rsa /etc/ssh/ \
+    && mv /etc/ssh/id_rsa /etc/ssh/ssh_host_rsa_key \
+    && sed -i "s~HostKey /etc/ssh/ssh_host_ecdsa_key~#HostKey /etc/ssh/ssh_host_ecdsa_key~g" /etc/ssh/sshd_config \
+    && sed -i "s~HostKey /etc/ssh/ssh_host_ed25519_key~#HostKey /etc/ssh/ssh_host_ed25519_key~g" /etc/ssh/sshd_config \
+    && cd /home/mig/ \
+    && mkdir .ssh \
+    && cd .ssh/ \
+    && touch authorized_keys \
+    && cp /root/.ssh/* . \
+    && cat id_rsa.pub > authorized_keys \
+    && chown mig:mig * \
+    && cd .. \
+    && chmod 700 .ssh \
+    && chown mig:mig .ssh
+
+COPY genjobscriptsh.py /home/mig/mig/server/genjobscriptsh.py
+COPY jobscriptgenerator.py /home/mig/mig/server/jobscriptgenerator.py
+COPY workflows.py /home/mig/mig/server/shared/workflows.py
+COPY MiGserver.conf /home/mig/mig/server/MiGserver.conf
+COPY master_node_script.sh /home/mig/mig/resource/master_node_script.sh
+COPY PAPERMILL /home/mig/state/re_home/PAPERMILL
+COPY NOTEBOOK_PARAMETERIZER /home/mig/state/re_home/NOTEBOOK_PARAMETERIZER
+COPY thesis_tests /home/mig/mig/thesis_tests
+
+RUN chown -R mig:mig \
+    /home/mig/mig/server/genjobscriptsh.py \
+    /home/mig/mig/server/jobscriptgenerator.py \ 
+    /home/mig/mig/server/shared/workflows.py \ 
+    /home/mig/mig/server/MiGserver.conf \
+    /home/mig/mig/resource/master_node_script.sh \
+    /home/mig/state/re_home/PAPERMILL \
+    /home/mig/state/re_home/NOTEBOOK_PARAMETERIZER \
+    /home/mig/mig/thesis_tests
+
 WORKDIR /app
 
 # EXPOSE is not important but keep in sync with active ports for the record

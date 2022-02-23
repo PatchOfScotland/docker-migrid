@@ -25,7 +25,8 @@ services:
 
   migrid:
     container_name: migrid
-    image: nielsbohr/migrid:$BUILD_TYPE
+    image: nielsbohr/migrid:basic
+    privileged: true
     build:
       context: ./
       dockerfile: Dockerfile
@@ -84,7 +85,7 @@ services:
     container_name: migrid-io
     profiles:
       - single
-    image: nielsbohr/migrid:$BUILD_TYPE
+    image: nielsbohr/migrid:basic
     build:
       context: ./
       dockerfile: Dockerfile
@@ -150,7 +151,7 @@ services:
     container_name: migrid-openid
     profiles:
       - multi
-    image: nielsbohr/migrid:$BUILD_TYPE
+    image: nielsbohr/migrid:basic
     build:
       context: ./
       dockerfile: Dockerfile
@@ -203,7 +204,7 @@ services:
     container_name: migrid-sftp
     profiles:
       - multi
-    image: nielsbohr/migrid:$BUILD_TYPE
+    image: nielsbohr/migrid:basic
     build:
       context: ./
       dockerfile: Dockerfile
@@ -257,7 +258,7 @@ services:
     container_name: migrid-ftps
     profiles:
       - multi
-    image: nielsbohr/migrid:$BUILD_TYPE
+    image: nielsbohr/migrid:basic
     build:
       context: ./
       dockerfile: Dockerfile
@@ -311,7 +312,7 @@ services:
     container_name: migrid-webdavs
     profiles:
       - multi
-    image: nielsbohr/migrid:$BUILD_TYPE
+    image: nielsbohr/migrid:basic
     build:
       context: ./
       dockerfile: Dockerfile
