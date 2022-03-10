@@ -1,102 +1,137 @@
-import nbformat
+
+import time
 import os
 import sys
-import time
+import nbformat
 
-from cleanup_results import cleanup, get_raw, get_job
+from cleanup_results import get_raw, cleanup, get_job
 from generate_files import generate
-from setupmeowdefs import clean, VGRID, write_pattern, write_recipe
-from vgrid import make_vgrid, remove_vgrid
+from setupmeowdefs import clean, write_pattern, write_recipe
+from vgrid import make_vgrid
 
 from mig.shared.serial import load
 
-REPEATS = 10
+VGRID = "test"
+RESULTS_DIR = '/home/mig/results'
 
-def run_test(patterns, recipes, files, jobs, errors, signature='', execution=False):
+SINGLE_PATTERN_MULTIPLE_FILES = 'single_Pattern_multiple_files'
+SINGLE_PATTERN_SINGLE_FILE_PARALLEL = 'single_Pattern_single_file_parallel_jobs'
+SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL = 'single_Pattern_single_file_sequential_jobs'
+MULTIPLE_PATTERNS_SINGLE_FILE = 'multiple_Patterns_single_file'
+MULTIPLE_PATTERNS_MULTIPLE_FILES = 'multiple_Patterns_multiple_files'
+
+REPEATS=10
+
+JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
+
+
+TESTS = [
+    SINGLE_PATTERN_MULTIPLE_FILES,
+    MULTIPLE_PATTERNS_SINGLE_FILE,
+    SINGLE_PATTERN_SINGLE_FILE_PARALLEL,
+    # These tests take ages, run them over a weeked
+    #MULTIPLE_PATTERNS_MULTIPLE_FILES,
+    #SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL
+]
+
+def clean_mig():
+    clean()
+    os.system("rm -r -f /home/mig/state/mrsl_files/*")
+    # Need to remove log file as it gets seriously massive. Doing it like this may be more harm than good though
+    os.system("rm -r -f /home/mig/state/log/*")
+
+def run_test(
+    patterns={}, recipes={}, files_count=0, expected_job_count=0, repeats=0, 
+    job_counter=0, requested_jobs=0, runtime_start=0, signature='', 
+    execution=False, print_logging=False, errors=[]):
 
     make_vgrid(VGRID)
 
-    clean()
+    if not os.path.exists(RESULTS_DIR):
+        os.mkdir(RESULTS_DIR)
 
-    for pattern in patterns:
-        write_pattern(pattern)
+    for run in range(repeats):
+        clean_mig()
 
-    for recipe in recipes:
-        write_recipe(recipe)
+        print("Starting run %s of %s jobs for %s" % (run, expected_job_count, signature)) 
 
-    time.sleep(3)
-
-    for run in range(REPEATS):
+        # Ensure complete cleanup from previous run
         data_folder = "/home/mig/state/vgrid_files_home/test/testing"
+        if not os.path.exists(data_folder):
+            os.mkdir(data_folder)
         job_counter_path = '/home/mig/state/mig_system_files/job_id_counter'
+
         for filename in os.listdir(data_folder):
             os.remove(os.path.join(data_folder, filename))
-        time.sleep(1)
 
-        initial_job_count = -1
-        while initial_job_count == -1:
-            time.sleep(1)
+	    # In small experiments the tail end of the above deletes may be getting tied into the creation evenst below, so separare them
+        time.sleep(3)
+
+        for pattern in patterns:
+            write_pattern(pattern)
+
+        for recipe in recipes:
+            write_recipe(recipe)
+        
+        # Possible add some check here on all patterns and recipes created
+
+        initial_job_count = 0
+        if os.path.exists(job_counter_path):
+            with open(job_counter_path, 'r') as f:
+                initial_job_count = int(f.read())
+
+        time.sleep(3)
+ 
+        first_filename, duration = generate(files_count, data_folder +"/file_")
+
+        getting_jobs = 1
+        miss_count = 0
+        final_job_count = initial_job_count
+        previous_job_count = -1
+        total_jobs_found = 0
+        sleepy_time = 15
+        while getting_jobs:
+            time.sleep(sleepy_time)
+            sleepy_time = 3
+        
             if os.path.exists(job_counter_path):
                 with open(job_counter_path, 'r') as f:
-                    initial_job_count = int(f.read())
-            else:
-                initial_job_count = 0
-
-        print("Starting execution from: "+ str(initial_job_count))
-
-        first_filename, duration = generate(files, data_folder +"/file_")
-
-        final_job_count = initial_job_count
-        prev_count = 0
-        job_count = -1
-        miss_count = 0
-        miss_limit = jobs * 2
-        if execution:
-            miss_limit = 100
-        if not signature:
-            signature = str(len(patterns)) +"_"+ str(files)  +"_"+ str(jobs)
-        while job_count == -1:
-            time.sleep(15 + max(files, len(patterns))/20)
-            if not miss_count and not os.path.exists(job_counter_path):
-                miss_count += 1
-            else:
-                with open(job_counter_path, 'r') as f:
                     final_job_count = int(f.read())
-                    if prev_count == final_job_count:
-                        if final_job_count - initial_job_count == jobs:
-                            job_count = final_job_count - initial_job_count
-                        elif final_job_count - initial_job_count > jobs:
-                            job_count = final_job_count - initial_job_count
-                            errors.append(signature +" - Too many jobs scheduled between "+ str(initial_job_count) +" and "+ str(final_job_count) +", count: "+ str(final_job_count - initial_job_count))
-                        else:
-                            miss_count += 1
-                    if final_job_count > prev_count:
-                        miss_count = 0
-                    prev_count = final_job_count
-            if miss_count == miss_limit:
-                job_count = final_job_count - initial_job_count
-                print('got to miss limit at ' + str(final_job_count))
-                errors.append(signature +" - Not enough jobs scheduled between "+ str(initial_job_count) +" and "+ str(final_job_count) +", count: "+ str(final_job_count - initial_job_count))
 
-        print("job count:" + str(final_job_count))
-        print("job count:" + str(job_count))
+            print('Jobs: %s %s' % (previous_job_count, final_job_count))
+            if previous_job_count == final_job_count:
+                miss_count+=1
+                if miss_count == 10:
+                    getting_jobs = 0
+            else:
+                miss_count = 0
+            previous_job_count = final_job_count
 
-        raw_dir = os.path.join(signature, "raw")
+        total_jobs_found = final_job_count - initial_job_count
+        print('Job queue settled with %s jobs' %  (total_jobs_found))
+
+        if total_jobs_found < expected_job_count:
+            errors.append("Not enough jobs for run %s of %s. Got %s but expected %s." % (run, signature, total_jobs_found, expected_job_count))
+
+        if total_jobs_found > expected_job_count:
+            errors.append("Too many jobs for run %s of %s. Got %s but expected %s." % (run, signature, total_jobs_found, expected_job_count))
+
+        raw_dir = os.path.join(RESULTS_DIR, signature, "raw")
         raw_path = os.path.join(raw_dir, str(run) +".txt")
-        results_dir = os.path.join(signature, "results")
+        results_dir = os.path.join(RESULTS_DIR, signature, "results")
         results_path = os.path.join(results_dir, str(run) +".txt")
 
-        for d in [signature, raw_dir, results_dir]:
+        for d in [os.path.join(RESULTS_DIR, signature), raw_dir, results_dir]:
             if not os.path.exists(d):
                 os.mkdir(d)
 
         get_raw(raw_path)
-
+        
         with open(raw_path, 'r') as f_in:
             data = f_in.readlines()
 
         print("data:" + str(len(data)))
-        data = data[-job_count:]
+        data = data[-total_jobs_found:]
         print("data:" + str(len(data)))
 
         with open(raw_path, 'w') as f_out:
@@ -125,147 +160,16 @@ def run_test(patterns, recipes, files, jobs, errors, signature='', execution=Fal
 
         total_time = cleanup(raw_path, results_path, first_filename, duration, execution=execution)
 
-        print(str(run+1) +"/"+ str(REPEATS) +" - Ran "+ str(job_count) +" jobs "+ str(initial_job_count) +" to "+ str(final_job_count) +". Generation: "+ str(round(duration, 5)) +"s Scheduling: "+ str(total_time) +"s")
+        print(str(run+1) +"/"+ str(repeats) +" - Ran "+ str(total_jobs_found) +" jobs "+ str(initial_job_count) +" to "+ str(final_job_count) +". Generation: "+ str(round(duration, 5)) +"s Scheduling: "+ str(total_time) +"s")
 
-    clean()
+        print("Completed scheduling run %s of %s/%s jobs for '%s' %s/%s (%ss)" % (run + 1, total_jobs_found, expected_job_count, signature, job_counter + expected_job_count*(run+1), requested_jobs,  round(time.time()-runtime_start, 3)))
 
-def no_execution_tests(errors):
-    expected_jobs = 100
-
-    single_boring_pattern = [{
-        'name': 'pattern_one',
-        'vgrid': VGRID,
-        'input_paths': ['testing/*'],
-        'input_file': 'input',
-        'output': {},
-        'recipes': ['recipe_one'],
-        'variables': {}
-    }]
-
-    notebook = nbformat.read('test.ipynb', nbformat.NO_CONVERT)
-    single_recipe = [{
-        'name': 'recipe_one',
-        'vgrid': VGRID,
-        'recipe': notebook,
-        'source': 'test.ipynb'
-    }]
-
-    run_test(
-        single_boring_pattern, 
-        single_recipe, 
-        100, 
-        expected_jobs, 
-        errors, 
-        signature="1_Patterns_100_files"
-    )
-    
-    hundered_identical_patterns = []
-    for i in range(expected_jobs):
-        hundered_identical_patterns.append({
-            'name': 'pattern_'+ str(i),
-            'vgrid': VGRID,
-            'input_paths': ['testing/*'],
-            'input_file': 'input',
-            'output': {},
-            'recipes': ['recipe_one'],
-            'variables': {}
-        })
-
-    run_test(
-        hundered_identical_patterns, 
-        single_recipe, 
-        1, 
-        expected_jobs, 
-        errors, 
-        signature="100_Patterns_1_file"
-    )
-
-    hundered_different_patterns = []
-    for i in range(expected_jobs):
-        hundered_different_patterns.append({
-            'name': 'pattern_'+ str(i),
-            'vgrid': VGRID,
-            'input_paths': ['testing/file_'+ str(i) +'.txt'],
-            'input_file': 'input',
-            'output': {},
-            'recipes': ['recipe_one'],
-            'variables': {}
-        })
-
-    run_test(
-        hundered_different_patterns, 
-        single_recipe, 
-        100, 
-        expected_jobs, 
-        errors, 
-        signature="100_Patterns_100_files"
-    )
-
-    single_exciting_pattern = [{
-        'name': 'pattern_one',
-        'vgrid': VGRID,
-        'input_paths': ['testing/*'],
-        'input_file': 'input',
-        'output': {},
-        'recipes': ['recipe_one'],
-        'variables': {},
-        'parameterize_over': {
-            'var': {
-                'increment': 1,
-                'start': 1,
-                'stop': 100
-            }
-        }    
-    }]
-
-    run_test(
-        single_exciting_pattern, 
-        single_recipe, 
-        1, 
-        expected_jobs, 
-        errors,
-        signature="1_Pattern_1_file"
-    )    
-
-def sequential_tests(errors):
-    to_run = 100
-
-    expected_jobs = to_run
-
-    single_pattern = [{
-        'name': 'pattern_one',
-        'vgrid': VGRID,
-        'input_paths': ['testing/*'],
-        'input_file': 'INPUT_FILE',
-        'output': {},
-        'recipes': ['recipe_one'],
-        'variables': {
-            'MAX_COUNT': to_run
-        }
-    }]
-
-    notebook = nbformat.read('sequential.ipynb', nbformat.NO_CONVERT)
-    single_recipe = [{
-        'name': 'recipe_one',
-        'vgrid': VGRID,
-        'recipe': notebook,
-        'source': 'sequential.ipynb'
-    }]
-
-    run_test(
-        single_pattern, 
-        single_recipe, 
-        1, 
-        expected_jobs, 
-        errors, 
-        signature="1_Patterns_"+ str(to_run) +"_sequential_files",
-        execution=True
-    )
+    clean_mig()
 
 def warmup(errors):
-    expected_jobs = 100
+    warmup_jobs = 100
 
-    single_boring_pattern = [{
+    patterns = [{
         'name': 'pattern_one',
         'vgrid': VGRID,
         'input_paths': ['testing/*'],
@@ -276,7 +180,7 @@ def warmup(errors):
     }]
 
     notebook = nbformat.read('test.ipynb', nbformat.NO_CONVERT)
-    single_recipe = [{
+    recipes = [{
         'name': 'recipe_one',
         'vgrid': VGRID,
         'recipe': notebook,
@@ -284,13 +188,191 @@ def warmup(errors):
     }]
 
     run_test(
-        single_boring_pattern, 
-        single_recipe, 
-        100, 
-        expected_jobs, 
-        errors, 
-        signature="Warmup"
+        patterns=patterns, 
+        recipes=recipes, 
+        files_count=warmup_jobs, 
+        expected_job_count=warmup_jobs,
+        requested_jobs=warmup_jobs,
+        runtime_start=0,
+        repeats=1,
+        job_counter=0, 
+        errors=errors, 
+        signature="Warmup",
+        execution=False,
+        print_logging=False
     )
+
+def no_execution_tests(errors):
+    requested_jobs=0
+    for job_count in JOB_COUNTS:
+        requested_jobs += job_count * REPEATS * len(TESTS)
+    print("requested_jobs: %s" % requested_jobs)
+
+    runtime_start=time.time()
+
+    job_counter=0
+    for job_count in JOB_COUNTS:
+
+        if SINGLE_PATTERN_MULTIPLE_FILES in TESTS:
+
+            patterns = [{
+                'name': 'pattern_one',
+                'vgrid': VGRID,
+                'input_paths': ['testing/*'],
+                'input_file': 'input',
+                'output': {},
+                'recipes': ['recipe_one'],
+                'variables': {}
+            }]
+
+            notebook = nbformat.read('test.ipynb', nbformat.NO_CONVERT)
+            recipes = [{
+                'name': 'recipe_one',
+                'vgrid': VGRID,
+                'recipe': notebook,
+                'source': 'test.ipynb'
+            }]
+
+            run_test(
+                patterns=patterns, 
+                recipes=recipes, 
+                files_count=job_count, 
+                expected_job_count=job_count,
+                requested_jobs=requested_jobs,
+                runtime_start=runtime_start,
+                repeats=REPEATS,
+                job_counter=job_counter, 
+                errors=errors, 
+                signature="single_Pattern_multiple_files",
+                execution=False,
+                print_logging=False
+            )
+
+            job_counter += job_count * REPEATS
+        
+        if MULTIPLE_PATTERNS_SINGLE_FILE in TESTS:
+
+            patterns = []
+            for i in range(job_count):
+                patterns.append({
+                    'name': 'pattern_'+ str(i),
+                    'vgrid': VGRID,
+                    'input_paths': ['testing/*'],
+                    'input_file': 'input',
+                    'output': {},
+                    'recipes': ['recipe_one'],
+                    'variables': {}
+                })
+
+            notebook = nbformat.read('test.ipynb', nbformat.NO_CONVERT)
+            recipes = [{
+                'name': 'recipe_one',
+                'vgrid': VGRID,
+                'recipe': notebook,
+                'source': 'test.ipynb'
+            }]
+
+            run_test(
+                patterns=patterns, 
+                recipes=recipes, 
+                files_count=1, 
+                expected_job_count=job_count,
+                requested_jobs=requested_jobs,
+                runtime_start=runtime_start,
+                repeats=REPEATS,
+                job_counter=job_counter, 
+                errors=errors, 
+                signature="multiple_Patterns_single_file",
+                execution=False,
+                print_logging=False
+            )
+
+            job_counter += job_count * REPEATS
+
+        if MULTIPLE_PATTERNS_MULTIPLE_FILES in TESTS:
+
+            patterns = []
+            for i in range(job_count):
+                patterns.append({
+                    'name': 'pattern_'+ str(i),
+                    'vgrid': VGRID,
+                    'input_paths': ['testing/file_'+ str(i) +'.txt'],
+                    'input_file': 'input',
+                    'output': {},
+                    'recipes': ['recipe_one'],
+                    'variables': {}
+                })
+
+            notebook = nbformat.read('test.ipynb', nbformat.NO_CONVERT)
+            recipes = [{
+                'name': 'recipe_one',
+                'vgrid': VGRID,
+                'recipe': notebook,
+                'source': 'test.ipynb'
+            }]
+
+            run_test(
+                patterns=patterns, 
+                recipes=recipes, 
+                files_count=job_count, 
+                expected_job_count=job_count,
+                requested_jobs=requested_jobs,
+                runtime_start=runtime_start,
+                repeats=REPEATS,
+                job_counter=job_counter, 
+                errors=errors, 
+                signature="multiple_Patterns_multiple_files",
+                execution=False,
+                print_logging=False
+            )
+
+            job_counter += job_count * REPEATS
+
+        if SINGLE_PATTERN_SINGLE_FILE_PARALLEL in TESTS:
+
+            patterns = [{
+                'name': 'pattern_one',
+                'vgrid': VGRID,
+                'input_paths': ['testing/*'],
+                'input_file': 'input',
+                'output': {},
+                'recipes': ['recipe_one'],
+                'variables': {},
+                'parameterize_over': {
+                    'var': {
+                        'increment': 1,
+                        'start': 1,
+                        'stop': job_count
+                    }
+                }    
+            }]
+
+            notebook = nbformat.read('sequential.ipynb', nbformat.NO_CONVERT)
+            recipes = [{
+                'name': 'recipe_one',
+                'vgrid': VGRID,
+                'recipe': notebook,
+                'source': 'sequential.ipynb'
+            }]
+
+            run_test(
+                patterns=patterns, 
+                recipes=recipes, 
+                files_count=1, 
+                expected_job_count=job_count,
+                requested_jobs=requested_jobs,
+                runtime_start=runtime_start,
+                repeats=REPEATS,
+                job_counter=job_counter, 
+                errors=errors, 
+                signature="single_Pattern_single_file_parallel",
+                execution=False,
+                print_logging=False
+            )
+
+            job_counter += job_count * REPEATS
+
+    print("All tests completed in: %s", time.time()-runtime_start)
 
 if __name__ == '__main__':
     args = sys.argv[1:]
@@ -300,8 +382,9 @@ if __name__ == '__main__':
     if args and args[0] == "warmup":
         warmup(errors)
 
-    if args and args[0] == "seq":
-        sequential_tests(errors)
+    if args and args[0] == "tests":
+#        sequential_tests(errors)
+        pass
 
     else:
         no_execution_tests(errors)

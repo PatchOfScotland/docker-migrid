@@ -15,6 +15,7 @@ init:
 	mkdir -p httpd
 	mkdir -p mig
 	mkdir -p state
+	mkdir -p results
 
 build:
 	docker-compose build ${ARGS}

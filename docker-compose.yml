@@ -76,6 +76,10 @@ services:
       - type: volume
         source: state
         target: /home/mig/state
+      - type: volume
+        source: results
+        target: /home/mig/results
+
     env_file:
       - migrid-httpd.env
     command: /app/docker-entry.sh -u test@migrid.test -p TestPw0rd -s "sftp ftps webdavs"
@@ -426,4 +430,11 @@ volumes:
       driver_opts:
         type: none
         device: $PWD/state
+        o: bind
+
+  results:
+      driver: local
+      driver_opts:
+        type: none
+        device: $PWD/results
         o: bind

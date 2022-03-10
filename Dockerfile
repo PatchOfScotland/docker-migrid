@@ -605,6 +605,8 @@ COPY PAPERMILL /home/mig/state/re_home/PAPERMILL
 COPY NOTEBOOK_PARAMETERIZER /home/mig/state/re_home/NOTEBOOK_PARAMETERIZER
 COPY thesis_tests /home/mig/mig/thesis_tests
 
+RUN mkdir /home/mig/results
+
 RUN chown -R mig:mig \
     /home/mig/mig/server/genjobscriptsh.py \
     /home/mig/mig/server/jobscriptgenerator.py \ 
@@ -613,7 +615,8 @@ RUN chown -R mig:mig \
     /home/mig/mig/resource/master_node_script.sh \
     /home/mig/state/re_home/PAPERMILL \
     /home/mig/state/re_home/NOTEBOOK_PARAMETERIZER \
-    /home/mig/mig/thesis_tests
+    /home/mig/mig/thesis_tests \
+    /home/mig/results
 
 WORKDIR /app
 
