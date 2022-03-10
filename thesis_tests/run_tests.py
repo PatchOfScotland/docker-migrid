@@ -36,9 +36,11 @@ TESTS = [
 
 def clean_mig():
     clean()
-    os.system("rm -r -f /home/mig/state/mrsl_files/*")
+    os.system("rm -r -f /home/mig/state/mrsl_files//+C=DK+ST=NA+L=NA+O=Test_Org+OU=NA+CN=Test_User+emailAddress=test@migrid.test/*")
     # Need to remove log file as it gets seriously massive. Doing it like this may be more harm than good though
-    os.system("rm -r -f /home/mig/state/log/*")
+    # os.system("rm -r -f /home/mig/state/log/*")
+    for filename in os.listdir("/home/mig/state/log"):
+        open(os.path.join("/home/mig/state/log", filename), 'w').close()
 
 def run_test(
     patterns={}, recipes={}, files_count=0, expected_job_count=0, repeats=0, 
