@@ -34,9 +34,10 @@ TESTS = [
     #SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL
 ]
 
-def clean_mig():
-    clean()
-    os.system("rm -r -f /home/mig/state/mrsl_files//+C=DK+ST=NA+L=NA+O=Test_Org+OU=NA+CN=Test_User+emailAddress=test@migrid.test/*")
+def clean_mig(meow=True):
+    if meow:
+        clean()
+    os.system("rm -r -f /home/mig/state/mrsl_files/+C=DK+ST=NA+L=NA+O=Test_Org+OU=NA+CN=Test_User+emailAddress=test@migrid.test/*")
     # Need to remove log file as it gets seriously massive. Doing it like this may be more harm than good though
     # os.system("rm -r -f /home/mig/state/log/*")
     for filename in os.listdir("/home/mig/state/log"):
@@ -52,10 +53,16 @@ def run_test(
     if not os.path.exists(RESULTS_DIR):
         os.mkdir(RESULTS_DIR)
 
-    for run in range(repeats):
-        clean_mig()
+    for pattern in patterns:
+        write_pattern(pattern)
 
-        print("Starting run %s of %s jobs for %s" % (run, expected_job_count, signature)) 
+    for recipe in recipes:
+        write_recipe(recipe)
+
+    for run in range(repeats):
+        clean_mig(meow=False)
+
+        print("Starting run %s of %s jobs from %s files for %s" % (run, expected_job_count, files_count, signature))
 
         # Ensure complete cleanup from previous run
         data_folder = "/home/mig/state/vgrid_files_home/test/testing"
@@ -68,12 +75,6 @@ def run_test(
 
 	    # In small experiments the tail end of the above deletes may be getting tied into the creation evenst below, so separare them
         time.sleep(3)
-
-        for pattern in patterns:
-            write_pattern(pattern)
-
-        for recipe in recipes:
-            write_recipe(recipe)
         
         # Possible add some check here on all patterns and recipes created
 
@@ -374,7 +375,7 @@ def no_execution_tests(errors):
 
             job_counter += job_count * REPEATS
 
-    print("All tests completed in: %s", time.time()-runtime_start)
+    print("All tests completed in: %s" % str(time.time()-runtime_start))
 
 if __name__ == '__main__':
     args = sys.argv[1:]
