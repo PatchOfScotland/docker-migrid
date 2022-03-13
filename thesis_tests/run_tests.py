@@ -20,9 +20,10 @@ SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL = 'single_Pattern_single_file_sequential_j
 MULTIPLE_PATTERNS_SINGLE_FILE = 'multiple_Patterns_single_file'
 MULTIPLE_PATTERNS_MULTIPLE_FILES = 'multiple_Patterns_multiple_files'
 
-REPEATS=10
+REPEATS=2
 
-JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
+JOB_COUNTS=[10, 20, 30]
+#JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
 
 
 TESTS = [
@@ -39,7 +40,6 @@ def clean_mig(meow=True):
         clean()
     os.system("rm -r -f /home/mig/state/mrsl_files/+C=DK+ST=NA+L=NA+O=Test_Org+OU=NA+CN=Test_User+emailAddress=test@migrid.test/*")
     # Need to remove log file as it gets seriously massive. Doing it like this may be more harm than good though
-    # os.system("rm -r -f /home/mig/state/log/*")
     for filename in os.listdir("/home/mig/state/log"):
         open(os.path.join("/home/mig/state/log", filename), 'w').close()
 
@@ -119,12 +119,12 @@ def run_test(
         if total_jobs_found > expected_job_count:
             errors.append("Too many jobs for run %s of %s. Got %s but expected %s." % (run, signature, total_jobs_found, expected_job_count))
 
-        raw_dir = os.path.join(RESULTS_DIR, signature, "raw")
+        raw_dir = os.path.join(RESULTS_DIR, signature, str(expected_job_count), "raw")
         raw_path = os.path.join(raw_dir, str(run) +".txt")
-        results_dir = os.path.join(RESULTS_DIR, signature, "results")
+        results_dir = os.path.join(RESULTS_DIR, signature, str(expected_job_count), "results")
         results_path = os.path.join(results_dir, str(run) +".txt")
 
-        for d in [os.path.join(RESULTS_DIR, signature), raw_dir, results_dir]:
+        for d in [os.path.join(RESULTS_DIR, signature), os.path.join(RESULTS_DIR, signature, str(expected_job_count)), raw_dir, results_dir]:
             if not os.path.exists(d):
                 os.mkdir(d)
 
