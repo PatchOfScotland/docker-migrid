@@ -92,7 +92,7 @@ def run_test(
         final_job_count = initial_job_count
         previous_job_count = -1
         total_jobs_found = 0
-        sleepy_time = 15
+        sleepy_time = expected_job_count
         while getting_jobs:
             time.sleep(sleepy_time)
             sleepy_time = 3
