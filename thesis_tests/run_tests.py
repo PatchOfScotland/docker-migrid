@@ -20,10 +20,10 @@ SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL = 'single_Pattern_single_file_sequential_j
 MULTIPLE_PATTERNS_SINGLE_FILE = 'multiple_Patterns_single_file'
 MULTIPLE_PATTERNS_MULTIPLE_FILES = 'multiple_Patterns_multiple_files'
 
-REPEATS=2
+REPEATS=10
 
-JOB_COUNTS=[10, 20, 30]
-#JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
+#JOB_COUNTS=[10, 20, 30]
+JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
 
 
 TESTS = [
