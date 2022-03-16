@@ -30,3 +30,5 @@ PAPERMILL="$HOME/.local/bin/papermill"
 SSHFS_MOUNT="/usr/bin/sshfs"
 SSHFS_UMOUNT="/bin/fusermount -uz"
 python setupmeowdefs setup
+
+nohup python -u run_tests.py > output.txt &

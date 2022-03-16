@@ -20,6 +20,7 @@ SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL = 'single_Pattern_single_file_sequential_j
 MULTIPLE_PATTERNS_SINGLE_FILE = 'multiple_Patterns_single_file'
 MULTIPLE_PATTERNS_MULTIPLE_FILES = 'multiple_Patterns_multiple_files'
 
+INDEX_START=0
 REPEATS=10
 
 #JOB_COUNTS=[10, 20, 30]
@@ -59,7 +60,7 @@ def run_test(
     for recipe in recipes:
         write_recipe(recipe)
 
-    for run in range(repeats):
+    for run in range(INDEX_START, repeats):
         clean_mig(meow=False)
 
         print("Starting run %s of %s jobs from %s files for %s" % (run, expected_job_count, files_count, signature))
