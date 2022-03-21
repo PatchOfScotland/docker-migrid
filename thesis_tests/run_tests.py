@@ -20,19 +20,18 @@ SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL = 'single_Pattern_single_file_sequential_j
 MULTIPLE_PATTERNS_SINGLE_FILE = 'multiple_Patterns_single_file'
 MULTIPLE_PATTERNS_MULTIPLE_FILES = 'multiple_Patterns_multiple_files'
 
-INDEX_START=0
 REPEATS=10
 
-#JOB_COUNTS=[10, 20, 30]
-JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
+JOB_COUNTS=[200, 250, 300]
+#JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
 
 
 TESTS = [
-    SINGLE_PATTERN_MULTIPLE_FILES,
+    #SINGLE_PATTERN_MULTIPLE_FILES,
     MULTIPLE_PATTERNS_SINGLE_FILE,
-    SINGLE_PATTERN_SINGLE_FILE_PARALLEL,
+    #SINGLE_PATTERN_SINGLE_FILE_PARALLEL,
     # These tests take ages, run them over a weeked
-    #MULTIPLE_PATTERNS_MULTIPLE_FILES,
+    MULTIPLE_PATTERNS_MULTIPLE_FILES,
     #SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL
 ]
 
@@ -60,7 +59,7 @@ def run_test(
     for recipe in recipes:
         write_recipe(recipe)
 
-    for run in range(INDEX_START, repeats):
+    for run in range(repeats):
         clean_mig(meow=False)
 
         print("Starting run %s of %s jobs from %s files for %s" % (run, expected_job_count, files_count, signature))
@@ -83,6 +82,8 @@ def run_test(
         if os.path.exists(job_counter_path):
             with open(job_counter_path, 'r') as f:
                 initial_job_count = int(f.read())
+
+        print('initial_job_count: ' + str(initial_job_count))
 
         time.sleep(3)
  
@@ -113,6 +114,24 @@ def run_test(
 
         total_jobs_found = final_job_count - initial_job_count
         print('Job queue settled with %s jobs' %  (total_jobs_found))
+
+        miss_count = 0
+        miss_limit = expected_job_count
+        for job_id in range(initial_job_count, final_job_count):
+            job_string = ": "+ str(job_id) +"_"
+            checking_job = True
+            while checking_job:
+                status_code = os.system("grep '"+ job_string +"' /home/mig/state/log/events.log >/dev/null 2>&1")
+                if status_code == 0:
+                    checking_job = False
+                    miss_count = 0
+                else:
+                    print("No entry found for "+ str(job_string))
+                    miss_count += 1
+                    if miss_count == miss_limit:
+                        errors.append("Could not find job entry for %s." % str(job_id))
+                        continue
+                    time.sleep(5)
 
         if total_jobs_found < expected_job_count:
             errors.append("Not enough jobs for run %s of %s. Got %s but expected %s." % (run, signature, total_jobs_found, expected_job_count))
