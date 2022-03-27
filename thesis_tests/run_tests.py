@@ -22,17 +22,17 @@ MULTIPLE_PATTERNS_MULTIPLE_FILES = 'multiple_Patterns_multiple_files'
 
 REPEATS=10
 
-JOB_COUNTS=[200, 250, 300]
-#JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
+#JOB_COUNTS=[200, 250, 300]
+JOB_COUNTS=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500]
 
 
 TESTS = [
     #SINGLE_PATTERN_MULTIPLE_FILES,
-    MULTIPLE_PATTERNS_SINGLE_FILE,
+    #MULTIPLE_PATTERNS_SINGLE_FILE,
     #SINGLE_PATTERN_SINGLE_FILE_PARALLEL,
     # These tests take ages, run them over a weeked
-    MULTIPLE_PATTERNS_MULTIPLE_FILES,
-    #SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL
+    #MULTIPLE_PATTERNS_MULTIPLE_FILES,
+    SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL
 ]
 
 def clean_mig(meow=True):
@@ -95,9 +95,13 @@ def run_test(
         previous_job_count = -1
         total_jobs_found = 0
         sleepy_time = expected_job_count
+        miss_target = 10
+        if execution:
+            sleepy_time = 300
+            miss_target = 30
         while getting_jobs:
             time.sleep(sleepy_time)
-            sleepy_time = 3
+            sleepy_time = 5
         
             if os.path.exists(job_counter_path):
                 with open(job_counter_path, 'r') as f:
@@ -106,7 +110,7 @@ def run_test(
             print('Jobs: %s %s' % (previous_job_count, final_job_count))
             if previous_job_count == final_job_count:
                 miss_count+=1
-                if miss_count == 10:
+                if miss_count == miss_target:
                     getting_jobs = 0
             else:
                 miss_count = 0
@@ -394,6 +398,47 @@ def no_execution_tests(errors):
             )
 
             job_counter += job_count * REPEATS
+
+        if SINGLE_PATTERN_SINGLE_FILE_SEQUENTIAL in TESTS:
+
+            patterns = [{
+                'name': 'pattern_one',
+                'vgrid': VGRID,
+                'input_paths': ['testing/*'],
+                'input_file': 'INPUT_FILE',
+                'output': {},
+                'recipes': ['recipe_two'],
+                'variables': {
+                    'MAX_COUNT': job_count
+                },
+                'parameterize_over': {}    
+            }]
+
+            notebook = nbformat.read('sequential.ipynb', nbformat.NO_CONVERT)
+            recipes = [{
+                'name': 'recipe_two',
+                'vgrid': VGRID,
+                'recipe': notebook,
+                'source': 'sequential.ipynb'
+            }]
+
+            run_test(
+                patterns=patterns, 
+                recipes=recipes, 
+                files_count=1, 
+                expected_job_count=job_count,
+                requested_jobs=requested_jobs,
+                runtime_start=runtime_start,
+                repeats=REPEATS,
+                job_counter=job_counter, 
+                errors=errors, 
+                signature="single_Pattern_single_file_sequential",
+                execution=True,
+                print_logging=False
+            )
+
+            job_counter += job_count * REPEATS
+
 
     print("All tests completed in: %s" % str(time.time()-runtime_start))
 
